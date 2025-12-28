@@ -1,0 +1,135 @@
+version: "3.8"
+
+# =============================================================================
+# Lean Inventory System - Docker Compose Stack
+# Headless InvenTree Backend for Custom Kiosk Frontend
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database
+  # ---------------------------------------------------------------------------
+  inventree-db:
+    image: postgres:15-alpine
+    container_name: inventree-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${INVENTREE_DB_NAME:-inventree}
+      POSTGRES_USER: ${INVENTREE_DB_USER:-inventree}
+      POSTGRES_PASSWORD: ${INVENTREE_DB_PASSWORD:-inventree_secret_2024}
+    volumes:
+      - inventree_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${INVENTREE_DB_USER:-inventree}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - inventree_network
+
+  # ---------------------------------------------------------------------------
+  # Redis Cache
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: inventree-redis
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - inventree_network
+
+  # ---------------------------------------------------------------------------
+  # InvenTree Server (Django Backend)
+  # ---------------------------------------------------------------------------
+  inventree-server:
+    image: inventree/inventree:stable
+    container_name: inventree-server
+    restart: unless-stopped
+    depends_on:
+      inventree-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Database
+      INVENTREE_DB_ENGINE: ${INVENTREE_DB_ENGINE:-postgresql}
+      INVENTREE_DB_NAME: ${INVENTREE_DB_NAME:-inventree}
+      INVENTREE_DB_USER: ${INVENTREE_DB_USER:-inventree}
+      INVENTREE_DB_PASSWORD: ${INVENTREE_DB_PASSWORD:-inventree_secret_2024}
+      INVENTREE_DB_HOST: ${INVENTREE_DB_HOST:-inventree-db}
+      INVENTREE_DB_PORT: ${INVENTREE_DB_PORT:-5432}
+      # Redis
+      INVENTREE_CACHE_HOST: ${INVENTREE_CACHE_HOST:-redis}
+      INVENTREE_CACHE_PORT: ${INVENTREE_CACHE_PORT:-6379}
+      # Django
+      INVENTREE_DEBUG: ${INVENTREE_DEBUG:-True}
+      INVENTREE_SECRET_KEY: ${INVENTREE_SECRET_KEY:-lean-inventory-secret}
+      # API & CORS
+      INVENTREE_CORS_ORIGIN_ALLOW_ALL: "True"
+      # Admin
+      INVENTREE_ADMIN_USER: ${INVENTREE_ADMIN_USER:-admin}
+      INVENTREE_ADMIN_PASSWORD: ${INVENTREE_ADMIN_PASSWORD:-admin123}
+      INVENTREE_ADMIN_EMAIL: ${INVENTREE_ADMIN_EMAIL:-admin@inventory.local}
+      # Plugins
+      INVENTREE_PLUGINS_ENABLED: ${INVENTREE_PLUGINS_ENABLED:-True}
+      # Auto-update (runs migrations)
+      INVENTREE_AUTO_UPDATE: "True"
+    volumes:
+      - inventree_data:/home/inventree/data
+    ports:
+      - "8000:8000"
+    networks:
+      - inventree_network
+
+  # ---------------------------------------------------------------------------
+  # InvenTree Worker (Background Tasks - Celery)
+  # ---------------------------------------------------------------------------
+  inventree-worker:
+    image: inventree/inventree:stable
+    container_name: inventree-worker
+    restart: unless-stopped
+    command: invoke worker
+    depends_on:
+      inventree-server:
+        condition: service_started
+    environment:
+      # Database
+      INVENTREE_DB_ENGINE: ${INVENTREE_DB_ENGINE:-postgresql}
+      INVENTREE_DB_NAME: ${INVENTREE_DB_NAME:-inventree}
+      INVENTREE_DB_USER: ${INVENTREE_DB_USER:-inventree}
+      INVENTREE_DB_PASSWORD: ${INVENTREE_DB_PASSWORD:-inventree_secret_2024}
+      INVENTREE_DB_HOST: ${INVENTREE_DB_HOST:-inventree-db}
+      INVENTREE_DB_PORT: ${INVENTREE_DB_PORT:-5432}
+      # Redis
+      INVENTREE_CACHE_HOST: ${INVENTREE_CACHE_HOST:-redis}
+      INVENTREE_CACHE_PORT: ${INVENTREE_CACHE_PORT:-6379}
+      # Django
+      INVENTREE_DEBUG: ${INVENTREE_DEBUG:-True}
+      INVENTREE_SECRET_KEY: ${INVENTREE_SECRET_KEY:-lean-inventory-secret}
+      # Plugins
+      INVENTREE_PLUGINS_ENABLED: ${INVENTREE_PLUGINS_ENABLED:-True}
+    volumes:
+      - inventree_data:/home/inventree/data
+    networks:
+      - inventree_network
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  inventree_db_data:
+    name: inventree_db_data
+  inventree_data:
+    name: inventree_data
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  inventree_network:
+    name: inventree_network
+    driver: bridge

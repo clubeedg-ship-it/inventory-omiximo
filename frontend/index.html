@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Omiximo Inventory OS</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <!-- Glass Sidebar -->
+    <aside class="sidebar">
+        <nav class="sidebar-nav">
+            <!-- The Wall -->
+            <button class="nav-item active" data-view="wall" title="The Wall">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <rect x="3" y="3" width="7" height="7" rx="1" />
+                    <rect x="14" y="3" width="7" height="7" rx="1" />
+                    <rect x="3" y="14" width="7" height="7" rx="1" />
+                    <rect x="14" y="14" width="7" height="7" rx="1" />
+                </svg>
+            </button>
+
+            <!-- Parts Catalog -->
+            <button class="nav-item" data-view="catalog" title="Parts Catalog">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <line x1="8" y1="6" x2="21" y2="6" />
+                    <line x1="8" y1="12" x2="21" y2="12" />
+                    <line x1="8" y1="18" x2="21" y2="18" />
+                    <circle cx="4" cy="6" r="1.5" fill="currentColor" />
+                    <circle cx="4" cy="12" r="1.5" fill="currentColor" />
+                    <circle cx="4" cy="18" r="1.5" fill="currentColor" />
+                </svg>
+            </button>
+
+            <!-- Profitability -->
+            <button class="nav-item" data-view="profit" title="Profitability">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M3 3v18h18" />
+                    <path d="M7 16l4-4 4 4 5-6" />
+                </svg>
+            </button>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1 class="logo">OMIXIMO</h1>
+                <span class="hud-divider"></span>
+                <span class="view-title" id="viewTitle">The Wall</span>
+            </div>
+            <div class="header-right">
+                <div class="scan-status" id="scanStatus">
+                    <span>📡</span>
+                    <span id="scanText">Ready</span>
+                </div>
+                <button class="theme-toggle-pill" id="themeToggleHUD" title="Toggle Theme">
+                    <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="4" />
+                        <path
+                            d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+                    </svg>
+                    <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                    </svg>
+                </button>
+                <span class="clock" id="clock">--:--:--</span>
+            </div>
+        </header>
+
+        <!-- Views Container -->
+        <div class="views-container">
+            <!-- THE WALL VIEW -->
+            <section class="view active" id="view-wall">
+                <div class="wall-header">
+                    <span class="zone-badge">ZONE A</span>
+                    <span class="zone-badge">ZONE B</span>
+                </div>
+
+                <div class="wall-grid-wrapper">
+                    <!-- Column Headers -->
+                    <div class="column-headers">
+                        <div class="column-header"></div>
+                        <div class="column-header">A-1</div>
+                        <div class="column-header">A-2</div>
+                        <div class="column-header">A-3</div>
+                        <div class="column-header">A-4</div>
+                        <div class="column-header zone-divider"></div>
+                        <div class="column-header">B-1</div>
+                        <div class="column-header">B-2</div>
+                        <div class="column-header">B-3</div>
+                        <div class="column-header power-supply">B-4</div>
+                    </div>
+
+                    <!-- Grid (Generated by JS) -->
+                    <div class="wall-grid" id="wallGrid"></div>
+                </div>
+            </section>
+
+            <!-- CATALOG VIEW -->
+            <section class="view" id="view-catalog">
+                <div class="catalog-toolbar">
+                    <div class="catalog-search">
+                        <input type="text" placeholder="Search parts by SKU or name..." id="catalogSearch">
+                    </div>
+                    <select class="catalog-filter" id="catalogCategoryFilter">
+                        <option value="">All Categories</option>
+                    </select>
+                    <button class="fab" id="btnAddPart" title="Add New Part">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="catalog-grid" id="catalogGrid">
+                    <!-- Parts cards generated by JS -->
+                </div>
+            </section>
+
+            <!-- PROFIT VIEW -->
+            <section class="view" id="view-profit">
+                <div class="profit-header">
+                    <h2>Profitability Engine</h2>
+                    <div class="profit-summary">
+                        <div class="summary-card">
+                            <div class="label">Today's Margin</div>
+                            <div class="value positive" id="todayMargin">€0.00</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="label">Transactions</div>
+                            <div class="value" id="txCount">0</div>
+                        </div>
+                        <button class="btn-record-sale" id="btnRecordSale">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19" />
+                                <line x1="5" y1="12" x2="19" y2="12" />
+                            </svg>
+                            Record Sale
+                        </button>
+                    </div>
+                </div>
+                <div class="transactions-list" id="transactionsList">
+                    <!-- Transaction cards generated by JS -->
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Bin Details Modal -->
+    <div class="modal-overlay" id="binModal">
+        <div class="modal">
+            <button class="modal-close" id="binModalClose">&times;</button>
+            <div class="modal-header">
+                <h2 class="modal-title" id="binModalTitle">A-1-1</h2>
+                <span class="modal-subtitle" id="binModalSubtitle">Zone A · Column 1 · Level 1</span>
+            </div>
+            <div class="modal-body">
+                <div class="bin-details">
+                    <div class="bin-section">
+                        <h4>BIN A <span class="fifo-tag in">FIFO IN</span></h4>
+                        <div id="binAContent">
+                            <div class="empty-bin">No stock</div>
+                        </div>
+                    </div>
+                    <div class="bin-section">
+                        <h4>BIN B <span class="fifo-tag out">FIFO OUT</span></h4>
+                        <div id="binBContent">
+                            <div class="empty-bin">No stock</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-print-label" id="btnPrintBinLabel" title="Print Label">
+                    🏷️ Print Label
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Handshake Modal (Receiving) -->
+    <div class="modal-overlay" id="handshakeModal">
+        <div class="modal">
+            <button class="modal-close" id="handshakeClose">&times;</button>
+            <div class="modal-header">
+                <span class="modal-action" id="handshakeAction">RECEIVING</span>
+                <h2 class="modal-title" id="handshakePartName">Part Name</h2>
+                <span class="modal-subtitle" id="handshakeSKU">SKU-001</span>
+            </div>
+            <div class="modal-body">
+                <form class="handshake-form" id="handshakeForm">
+                    <div class="form-group">
+                        <label for="inputQty">Quantity</label>
+                        <input type="number" id="inputQty" min="1" value="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="inputPrice">Unit Price (€)</label>
+                        <input type="number" id="inputPrice" min="0" step="0.01" placeholder="0.00" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="inputBin">Target Bin</label>
+                        <select id="inputBin" required>
+                            <option value="">Select bin...</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-confirm">
+                        <span>✓</span>
+                        CONFIRM
+                    </button>
+                </form>
+                <div class="success-feedback" id="successFeedback">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M8 12l2.5 2.5L16 9" />
+                    </svg>
+                    <span class="message">Stock Received!</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Batch Edit Modal -->
+    <div class="modal-overlay" id="batchEditModal">
+        <div class="modal modal-batch-edit">
+            <div class="modal-header">
+                <h2 class="modal-title">Edit Batch</h2>
+                <button class="modal-close" id="batchEditClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="batch-edit-info">
+                    <div class="info-row">
+                        <span class="info-label">Part:</span>
+                        <span class="info-value" id="batchEditPartName">—</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Location:</span>
+                        <span class="info-value" id="batchEditLocation">—</span>
+                    </div>
+                </div>
+                <form id="batchEditForm">
+                    <div class="form-group">
+                        <label for="batchEditQty">Quantity</label>
+                        <input type="number" id="batchEditQty" min="0" step="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="batchEditPrice">Purchase Price (€)</label>
+                        <input type="number" id="batchEditPrice" min="0" step="0.01" required>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-cancel" id="batchEditCancel">Cancel</button>
+                        <button type="submit" class="btn-confirm">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Record Sale Modal -->
+    <div class="modal-overlay" id="recordSaleModal">
+        <div class="modal modal-record-sale">
+            <div class="modal-header">
+                <h2 class="modal-title">Record Sale</h2>
+                <button class="modal-close" id="recordSaleClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="recordSaleForm">
+                    <div class="form-group">
+                        <label for="saleProductName">Product Name</label>
+                        <input type="text" id="saleProductName" placeholder="e.g. Custom Gaming PC" required>
+                    </div>
+
+                    <div class="component-picker">
+                        <label>Components Used</label>
+                        <div class="picker-row">
+                            <select id="componentSelect">
+                                <option value="">Select component...</option>
+                            </select>
+                            <input type="number" id="componentQty" min="1" value="1" placeholder="Qty">
+                            <button type="button" id="addComponentBtn" class="btn-add-component">Add</button>
+                        </div>
+                    </div>
+
+                    <div class="components-list" id="saleComponentsList">
+                        <!-- Components added here by JS -->
+                        <div class="empty-components">No components added yet</div>
+                    </div>
+
+                    <div class="sale-financials">
+                        <div class="financial-row">
+                            <label for="salePrice">Sale Price (€)</label>
+                            <input type="number" id="salePrice" min="0" step="0.01" placeholder="0.00" required>
+                        </div>
+                        <div class="financial-summary">
+                            <div class="summary-row">
+                                <span>Total Cost (FIFO):</span>
+                                <span class="value" id="saleTotalCost">€0.00</span>
+                            </div>
+                            <div class="summary-row margin-row">
+                                <span>Margin:</span>
+                                <span class="value" id="saleMarginPreview">€0.00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn-cancel" id="recordSaleCancel">Cancel</button>
+                        <button type="submit" class="btn-confirm" id="recordSaleConfirm">Confirm Sale</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div class="modal-overlay" id="loginModal">
+        <div class="modal modal-login">
+            <div class="modal-header">
+                <div class="login-logo">🔐</div>
+                <h2 class="modal-title">Omiximo Inventory</h2>
+                <p class="login-subtitle">Sign in with your InvenTree account</p>
+            </div>
+            <div class="modal-body">
+                <form id="loginForm" class="login-form">
+                    <div class="form-group">
+                        <label for="loginUser">Username</label>
+                        <input type="text" id="loginUser" required placeholder="admin" autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPass">Password</label>
+                        <input type="password" id="loginPass" required placeholder="••••••••"
+                            autocomplete="current-password">
+                    </div>
+                    <div class="login-error" id="loginError"></div>
+                    <button type="submit" class="btn-confirm login-btn">
+                        <span id="loginBtnText">Sign In</span>
+                        <span id="loginSpinner" class="spinner hidden"></span>
+                    </button>
+                </form>
+            </div>
+            <div class="login-footer">
+                <span>InvenTree Backend</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast">
+        <span class="toast-icon">✓</span>
+        <span class="toast-message" id="toastMessage">Action completed</span>
+    </div>
+
+    <!-- Part Form Modal -->
+    <div class="modal-overlay" id="partModal">
+        <div class="modal modal-form">
+            <button class="modal-close" id="partModalClose">&times;</button>
+            <div class="modal-header">
+                <span class="modal-action" id="partModalAction">NEW PART</span>
+                <h2 class="modal-title" id="partModalTitle">Add Part</h2>
+            </div>
+            <div class="modal-body">
+                <form class="part-form" id="partForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="partName">Part Name *</label>
+                            <input type="text" id="partName" required placeholder="e.g., Intel Core i7-13700K">
+                        </div>
+                        <div class="form-group">
+                            <label for="partIPN">SKU / IPN *</label>
+                            <input type="text" id="partIPN" required placeholder="e.g., CPU-001">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="partDescription">Description</label>
+                        <textarea id="partDescription" rows="2" placeholder="Optional description"></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="partCategory">Category</label>
+                            <select id="partCategory">
+                                <option value="">No Category</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="partMinStock">Minimum Stock</label>
+                            <input type="number" id="partMinStock" min="0" value="0">
+                        </div>
+                    </div>
+                    <!-- JIT Reorder Point Fields -->
+                    <div class="form-divider">
+                        <span>JIT Reorder Point</span>
+                    </div>
+                    <div class="form-row form-row-3">
+                        <div class="form-group">
+                            <label for="partDeliveryDays">Avg Delivery Days</label>
+                            <input type="number" id="partDeliveryDays" min="0" step="0.5" value="3" placeholder="3">
+                        </div>
+                        <div class="form-group">
+                            <label for="partAvgSoldDay">Avg Sold / Day</label>
+                            <input type="number" id="partAvgSoldDay" min="0" step="0.1" value="0" placeholder="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Reorder Point</label>
+                            <div class="jit-rop-display" id="jitRoPDisplay">0</div>
+                        </div>
+                    </div>
+                    <!-- Initial Stock (for new parts only) -->
+                    <div class="form-divider" id="initialStockSection">
+                        <span>Initial Stock</span>
+                    </div>
+                    <div class="form-row form-row-3" id="initialStockFields">
+                        <div class="form-group">
+                            <label for="partLocation">Shelf Location *</label>
+                            <select id="partLocation" required>
+                                <option value="">Select shelf...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="partInitialQty">Quantity *</label>
+                            <input type="number" id="partInitialQty" min="1" value="1" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="partPurchasePrice">Purchase Price (€)</label>
+                            <input type="number" id="partPurchasePrice" min="0" step="0.01" placeholder="0.00">
+                        </div>
+                    </div>
+                    <p class="form-hint" id="fifoHint">📦 Auto-FIFO: Stock goes to Bin B first, then Bin A</p>
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" id="partFormCancel">Cancel</button>
+                        <button type="submit" class="btn-confirm">
+                            <span id="partFormIcon">✓</span>
+                            <span id="partFormLabel">Create Part</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal-overlay" id="deleteModal">
+        <div class="modal modal-confirm">
+            <div class="modal-header">
+                <span class="modal-action delete">DELETE</span>
+                <h2 class="modal-title" id="deleteModalTitle">Delete Part?</h2>
+            </div>
+            <div class="modal-body">
+                <p class="delete-warning">This action cannot be undone. All stock for this part will also be deleted.
+                </p>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" id="deleteCancelBtn">Cancel</button>
+                    <button type="button" class="btn-danger" id="deleteConfirmBtn">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="toast" id="toast">
+        <span class="toast-icon">✓</span>
+        <span class="toast-message" id="toastMessage">Action completed</span>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3/dist/JsBarcode.all.min.js"></script>
+    <script src="app.js"></script>
+    <script src="labels.js"></script>
+    <script src="profit.js"></script>
+</body>
+
+</html>
