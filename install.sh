@@ -34,86 +34,79 @@ echo -e "${CYAN}╚════════════════════�
 echo ""
 
 # -----------------------------------------------------------------------------
-# Prerequisites Check
+# Prerequisites Check & Auto-Cleanup
 # -----------------------------------------------------------------------------
-echo -e "${YELLOW}[1/7]${NC} Checking prerequisites..."
+echo -e "${YELLOW}[1/6]${NC} Checking system..."
 
 # Docker
 if ! command -v docker &> /dev/null; then
-    echo -e "${RED}✗ Docker not found. Please install Docker first:${NC}"
-    echo "  https://docs.docker.com/get-docker/"
+    echo -e "${RED}✗ Docker not found. Please install Docker first.${NC}"
     exit 1
 fi
-echo -e "  ${GREEN}✓${NC} Docker installed"
 
-# Docker Compose (v2 or v1)
+# Docker Compose
 if docker compose version &> /dev/null; then
     COMPOSE_CMD="docker compose"
-    echo -e "  ${GREEN}✓${NC} Docker Compose v2"
 elif command -v docker-compose &> /dev/null; then
     COMPOSE_CMD="docker-compose"
-    echo -e "  ${GREEN}✓${NC} Docker Compose v1"
 else
-    echo -e "${RED}✗ Docker Compose not found. Please install Docker Compose.${NC}"
+    echo -e "${RED}✗ Docker Compose not found.${NC}"
     exit 1
 fi
 
-# Python3
-if ! command -v python3 &> /dev/null; then
-    echo -e "${YELLOW}⚠ Python3 not found. Seeding step will be skipped.${NC}"
-    HAS_PYTHON=false
+# Check for conflicting containers and stop them
+echo -e "  Checking for existing InvenTree containers..."
+EXISTING_CONTAINERS=$(docker ps -a --filter "name=inventree-" --format "{{.ID}}")
+
+if [ ! -z "$EXISTING_CONTAINERS" ]; then
+    echo -e "  ${YELLOW}⚠${NC} Found existing containers. Stopping and removing them..."
+    docker stop $EXISTING_CONTAINERS 2>/dev/null || true
+    docker rm $EXISTING_CONTAINERS 2>/dev/null || true
+    echo -e "  ${GREEN}✓${NC} Cleaned up existing containers"
 else
-    echo -e "  ${GREEN}✓${NC} Python3 installed"
-    HAS_PYTHON=true
+    echo -e "  ${GREEN}✓${NC} Port 8000 clear"
 fi
 
 # -----------------------------------------------------------------------------
-# Directory Setup
+# Directory Setup (Smart Update)
 # -----------------------------------------------------------------------------
-echo -e "${YELLOW}[2/7]${NC} Setting up installation directory..."
+echo -e "${YELLOW}[2/6]${NC} Setting up installation directory..."
 
 INSTALL_DIR="${INSTALL_DIR:-$PWD/omiximo-inventory}"
 
 if [ -d "$INSTALL_DIR" ]; then
-    echo -e "  ${YELLOW}⚠${NC} Directory exists: $INSTALL_DIR"
-    read -p "  Overwrite? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo -e "  ${YELLOW}Aborted.${NC}"
-        exit 0
-    fi
-fi
-
-mkdir -p "$INSTALL_DIR"
-cd "$INSTALL_DIR"
-echo -e "  ${GREEN}✓${NC} Working in: $INSTALL_DIR"
-
-# -----------------------------------------------------------------------------
-# Download Project Files (or copy if running locally)
-# -----------------------------------------------------------------------------
-echo -e "${YELLOW}[3/7]${NC} Downloading project files..."
-
-# Check if we're already in the project directory
-if [ -f "docker-compose.yml" ] && [ -d "frontend" ]; then
-    echo -e "  ${GREEN}✓${NC} Project files already present"
-else
-    # Try to git clone, otherwise download zip
-    REPO_URL="${REPO_URL:-https://github.com/clubeedg-ship-it/inventory-omiximo.git}"
+    echo -e "  ${BLUE}ℹ${NC} Directory exists: $INSTALL_DIR"
+    cd "$INSTALL_DIR"
     
+    if [ -d ".git" ]; then
+        echo -e "  Updating repository..."
+        git pull --quiet || echo -e "  ${YELLOW}⚠${NC} Git pull failed (local changes?), proceeding anyway."
+    else
+        echo -e "  ${YELLOW}⚠${NC} Not a git repo. Proceeding with existing files."
+    fi
+else
+    mkdir -p "$INSTALL_DIR"
+    cd "$INSTALL_DIR"
+    echo -e "  ${GREEN}✓${NC} Created: $INSTALL_DIR"
+    
+    # Clone
+    REPO_URL="${REPO_URL:-https://github.com/clubeedg-ship-it/inventory-omiximo.git}"
     if command -v git &> /dev/null; then
         echo "  Cloning repository..."
         git clone --depth 1 "$REPO_URL" . 2>/dev/null || {
-            echo -e "  ${YELLOW}⚠${NC} Git clone failed. Please ensure files are present."
+             echo -e "${RED}✗ Git clone failed.${NC}"
+             exit 1
         }
     else
-        echo -e "  ${YELLOW}⚠${NC} Git not installed. Please ensure project files are in: $INSTALL_DIR"
+        echo -e "${RED}✗ Git is required for initial install.${NC}"
+        exit 1
     fi
 fi
 
 # -----------------------------------------------------------------------------
 # Environment Configuration
 # -----------------------------------------------------------------------------
-echo -e "${YELLOW}[4/7]${NC} Configuring environment..."
+echo -e "${YELLOW}[3/6]${NC} Configuring environment..."
 
 if [ ! -f ".env" ]; then
     if [ -f ".env.example" ]; then
@@ -151,7 +144,10 @@ fi
 # -----------------------------------------------------------------------------
 # Docker Stack Launch
 # -----------------------------------------------------------------------------
-echo -e "${YELLOW}[5/7]${NC} Starting Docker containers..."
+echo -e "${YELLOW}[4/6]${NC} Starting Docker containers..."
+
+# Ensure we pull the latest images
+# $COMPOSE_CMD pull -q
 
 $COMPOSE_CMD down 2>/dev/null || true
 $COMPOSE_CMD up -d
@@ -161,7 +157,7 @@ echo -e "  ${GREEN}✓${NC} Containers started"
 # -----------------------------------------------------------------------------
 # Wait for InvenTree to be healthy
 # -----------------------------------------------------------------------------
-echo -e "${YELLOW}[6/7]${NC} Waiting for InvenTree to be ready..."
+echo -e "${YELLOW}[5/6]${NC} Waiting for InvenTree to be ready..."
 
 MAX_WAIT=120
 WAITED=0
@@ -183,20 +179,23 @@ fi
 # -----------------------------------------------------------------------------
 # Seed Database (Locations)
 # -----------------------------------------------------------------------------
-echo -e "${YELLOW}[7/7]${NC} Seeding warehouse locations..."
+echo -e "${YELLOW}[6/6]${NC} Seeding warehouse locations..."
 
-if [ "$HAS_PYTHON" = true ] && [ -f "seed_locations.py" ]; then
-    # Install requests if needed
-    pip3 install requests --quiet 2>/dev/null || true
-    
-    # Run seeder
-    python3 seed_locations.py 2>/dev/null && {
-        echo -e "  ${GREEN}✓${NC} Warehouse locations seeded"
-    } || {
-        echo -e "  ${YELLOW}⚠${NC} Seeding skipped (may already be seeded)"
-    }
+# Check Python for seeding
+if ! command -v python3 &> /dev/null; then
+    echo -e "${YELLOW}⚠ Python3 not found. Seeding step will be skipped.${NC}"
 else
-    echo -e "  ${YELLOW}⚠${NC} Seeding skipped (Python not available)"
+    if [ -f "seed_locations.py" ]; then
+        # Install requests if needed
+        pip3 install requests --quiet 2>/dev/null || true
+        
+        # Run seeder
+        python3 seed_locations.py 2>/dev/null && {
+            echo -e "  ${GREEN}✓${NC} Warehouse locations seeded"
+        } || {
+            echo -e "  ${YELLOW}⚠${NC} Seeding skipped (may already be seeded)"
+        }
+    fi
 fi
 
 # -----------------------------------------------------------------------------
