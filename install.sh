@@ -104,30 +104,57 @@ else
 fi
 
 # -----------------------------------------------------------------------------
-# Port Selection (Random & Conflict-Free)
+# Port Configuration (Interactive / Environment)
 # -----------------------------------------------------------------------------
-echo -e "${YELLOW}[3/7]${NC} Selecting available ports..."
+echo -e "${YELLOW}[3/7]${NC} Configure ports..."
 
-function get_free_port() {
-    local port
-    while true; do
-        port=$(shuf -i 10000-60000 -n 1 2>/dev/null || awk -v min=10000 -v max=60000 'BEGIN{srand(); print int(min+rand()*(max-min+1))}')
-        if ! (echo >/dev/tcp/localhost/$port) &>/dev/null; then
-            echo $port
-            return
+# Helper to read input from TTY (works with curled script)
+get_input() {
+    local prompt="$1"
+    local default="$2"
+    local var_name="$3"
+    
+    # If variable is already set in environment, use it
+    if [ ! -z "${!var_name}" ]; then
+        echo -e "  Using configured $var_name: ${BLUE}${!var_name}${NC}"
+        return
+    fi
+    
+    # Interactive prompt if TTY is available
+    if [ -t 0 ] || [ -e /dev/tty ]; then
+        # Use /dev/tty explicit read for piped scripts
+        echo -ne "  $prompt [${default}]: " > /dev/tty
+        read input < /dev/tty
+        
+        if [ -z "$input" ]; then
+            eval $var_name="$default"
+        else
+            eval $var_name="$input"
         fi
-    done
+    else
+        # No TTY, fallback to default
+        echo -e "  No TTY detected, using default $var_name: $default"
+        eval $var_name="$default"
+    fi
 }
 
-BACKEND_PORT=$(get_free_port)
-FRONTEND_PORT=$(get_free_port)
-# Ensure they are different
-while [ "$FRONTEND_PORT" == "$BACKEND_PORT" ]; do
-    FRONTEND_PORT=$(get_free_port)
-done
+# Backend Port
+get_input "Backend (API) Port" "8000" "INVENTREE_WEB_PORT"
 
-echo -e "  ${GREEN}✓${NC} Selected Backend Port: ${BLUE}$BACKEND_PORT${NC}"
-echo -e "  ${GREEN}✓${NC} Selected Frontend Port: ${BLUE}$FRONTEND_PORT${NC}"
+# Frontend Port
+get_input "Frontend (UI) Port " "3001" "FRONTEND_PORT"
+
+# Export for current session usage
+export INVENTREE_WEB_PORT
+export FRONTEND_PORT
+
+echo -e "  ${GREEN}✓${NC} Backend:  ${BLUE}$INVENTREE_WEB_PORT${NC}"
+echo -e "  ${GREEN}✓${NC} Frontend: ${BLUE}$FRONTEND_PORT${NC}"
+
+# Check availability
+if (echo >/dev/tcp/localhost/$INVENTREE_WEB_PORT) &>/dev/null; then
+    echo -e "  ${YELLOW}⚠ Warning: Port $INVENTREE_WEB_PORT seems to be in use. Proceeding explicitly...${NC}"
+fi
 
 # -----------------------------------------------------------------------------
 # Environment Configuration
@@ -160,24 +187,31 @@ INVENTREE_PLUGINS_ENABLED=True
 INVENTREE_TIMEZONE=Europe/Amsterdam
 INVENTREE_AUTO_UPDATE=True
 INVENTREE_AUTO_MIGRATE=True
-# Dynamic Ports
-INVENTREE_WEB_PORT=$BACKEND_PORT
+# Ports
+INVENTREE_WEB_PORT=$INVENTREE_WEB_PORT
 FRONTEND_PORT=$FRONTEND_PORT
 EOF
         echo -e "  ${GREEN}✓${NC} Created default .env"
     fi
 else
-    # If .env exists, ensure we have ports set if they are missing
-    if ! grep -q "INVENTREE_WEB_PORT" .env; then
-        echo "INVENTREE_WEB_PORT=$BACKEND_PORT" >> .env
-        echo "FRONTEND_PORT=$FRONTEND_PORT" >> .env
-        echo -e "  ${GREEN}✓${NC} Added dynamic ports to existing .env"
+    # Update/Add ports in existing .env
+    # We use a temp file to safely update configuration while preserving comments
+    if grep -q "INVENTREE_WEB_PORT" .env; then
+        # Update existing
+        sed -i.bak "s/^INVENTREE_WEB_PORT=.*/INVENTREE_WEB_PORT=$INVENTREE_WEB_PORT/" .env
     else
-        # Read existing ports for display
-        BACKEND_PORT=$(grep INVENTREE_WEB_PORT .env | cut -d '=' -f2)
-        FRONTEND_PORT=$(grep FRONTEND_PORT .env | cut -d '=' -f2)
-        echo -e "  ${BLUE}ℹ${NC} Using existing ports configuration"
+        # Append
+        echo "INVENTREE_WEB_PORT=$INVENTREE_WEB_PORT" >> .env
     fi
+    
+    if grep -q "FRONTEND_PORT" .env; then
+        sed -i.bak "s/^FRONTEND_PORT=.*/FRONTEND_PORT=$FRONTEND_PORT/" .env
+    else
+        echo "FRONTEND_PORT=$FRONTEND_PORT" >> .env
+    fi
+    
+    rm -f .env.bak
+    echo -e "  ${GREEN}✓${NC} Updated .env with selected ports"
 fi
 
 # -----------------------------------------------------------------------------
@@ -201,7 +235,7 @@ echo -e "${YELLOW}[6/7]${NC} Waiting for InvenTree to be ready..."
 MAX_WAIT=120
 WAITED=0
 while [ $WAITED -lt $MAX_WAIT ]; do
-    if curl -s http://localhost:$BACKEND_PORT/api/ > /dev/null 2>&1; then
+    if curl -s http://localhost:$INVENTREE_WEB_PORT/api/ > /dev/null 2>&1; then
         echo -e "  ${GREEN}✓${NC} InvenTree API is ready!"
         break
     fi
@@ -246,9 +280,9 @@ echo -e "${GREEN}║${NC}                    ${GREEN}✅ INSTALLATION COMPLETE${
 echo -e "${GREEN}╚═══════════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${CYAN}BACKEND (InvenTree API):${NC}"
-echo -e "  URL:      ${BLUE}http://localhost:$BACKEND_PORT${NC}"
-echo -e "  API:      ${BLUE}http://localhost:$BACKEND_PORT/api/${NC}"
-echo -e "  Admin UI: ${BLUE}http://localhost:$BACKEND_PORT/admin/${NC}"
+echo -e "  URL:      ${BLUE}http://localhost:$INVENTREE_WEB_PORT${NC}"
+echo -e "  API:      ${BLUE}http://localhost:$INVENTREE_WEB_PORT/api/${NC}"
+echo -e "  Admin UI: ${BLUE}http://localhost:$INVENTREE_WEB_PORT/admin/${NC}"
 echo ""
 echo -e "${CYAN}LOGIN CREDENTIALS:${NC}"
 echo -e "  Username: ${GREEN}admin${NC}"
