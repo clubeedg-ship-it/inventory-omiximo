@@ -3,7 +3,7 @@
 # OMIXIMO INVENTORY OS - One-Line Installer
 # Headless InvenTree Backend + Custom Swiss Sci-Fi Frontend
 # =============================================================================
-# Usage: curl -sSL https://raw.githubusercontent.com/YOUR_REPO/main/install.sh | bash
+# Usage: curl -sSL https://raw.githubusercontent.com/clubeedg-ship-it/inventory-omiximo/main/install.sh | bash
 # =============================================================================
 
 set -e
@@ -98,7 +98,7 @@ if [ -f "docker-compose.yml" ] && [ -d "frontend" ]; then
     echo -e "  ${GREEN}✓${NC} Project files already present"
 else
     # Try to git clone, otherwise download zip
-    REPO_URL="${REPO_URL:-https://github.com/YOUR_USERNAME/omiximo-inventory.git}"
+    REPO_URL="${REPO_URL:-https://github.com/clubeedg-ship-it/inventory-omiximo.git}"
     
     if command -v git &> /dev/null; then
         echo "  Cloning repository..."
