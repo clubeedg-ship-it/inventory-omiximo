@@ -81,7 +81,7 @@ services:
     volumes:
       - inventree_data:/home/inventree/data
     ports:
-      - "8000:8000"
+      - "${INVENTREE_WEB_PORT:-8000}:8000"
     networks:
       - inventree_network
 

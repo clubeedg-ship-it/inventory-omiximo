@@ -36,7 +36,7 @@ echo ""
 # -----------------------------------------------------------------------------
 # Prerequisites Check & Auto-Cleanup
 # -----------------------------------------------------------------------------
-echo -e "${YELLOW}[1/6]${NC} Checking system..."
+echo -e "${YELLOW}[1/7]${NC} Checking system..."
 
 # Docker
 if ! command -v docker &> /dev/null; then
@@ -70,7 +70,7 @@ fi
 # -----------------------------------------------------------------------------
 # Directory Setup (Smart Update)
 # -----------------------------------------------------------------------------
-echo -e "${YELLOW}[2/6]${NC} Setting up installation directory..."
+echo -e "${YELLOW}[2/7]${NC} Setting up installation directory..."
 
 INSTALL_DIR="${INSTALL_DIR:-$PWD/omiximo-inventory}"
 
@@ -104,9 +104,35 @@ else
 fi
 
 # -----------------------------------------------------------------------------
+# Port Selection (Random & Conflict-Free)
+# -----------------------------------------------------------------------------
+echo -e "${YELLOW}[3/7]${NC} Selecting available ports..."
+
+function get_free_port() {
+    local port
+    while true; do
+        port=$(shuf -i 10000-60000 -n 1 2>/dev/null || awk -v min=10000 -v max=60000 'BEGIN{srand(); print int(min+rand()*(max-min+1))}')
+        if ! (echo >/dev/tcp/localhost/$port) &>/dev/null; then
+            echo $port
+            return
+        fi
+    done
+}
+
+BACKEND_PORT=$(get_free_port)
+FRONTEND_PORT=$(get_free_port)
+# Ensure they are different
+while [ "$FRONTEND_PORT" == "$BACKEND_PORT" ]; do
+    FRONTEND_PORT=$(get_free_port)
+done
+
+echo -e "  ${GREEN}✓${NC} Selected Backend Port: ${BLUE}$BACKEND_PORT${NC}"
+echo -e "  ${GREEN}✓${NC} Selected Frontend Port: ${BLUE}$FRONTEND_PORT${NC}"
+
+# -----------------------------------------------------------------------------
 # Environment Configuration
 # -----------------------------------------------------------------------------
-echo -e "${YELLOW}[3/6]${NC} Configuring environment..."
+echo -e "${YELLOW}[4/7]${NC} Configuring environment..."
 
 if [ ! -f ".env" ]; then
     if [ -f ".env.example" ]; then
@@ -114,7 +140,7 @@ if [ ! -f ".env" ]; then
         echo -e "  ${GREEN}✓${NC} Created .env from .env.example"
     else
         # Create default .env
-        cat > .env << 'EOF'
+        cat > .env << EOF
 INVENTREE_DB_ENGINE=postgresql
 INVENTREE_DB_NAME=inventree
 INVENTREE_DB_USER=inventree
@@ -134,17 +160,30 @@ INVENTREE_PLUGINS_ENABLED=True
 INVENTREE_TIMEZONE=Europe/Amsterdam
 INVENTREE_AUTO_UPDATE=True
 INVENTREE_AUTO_MIGRATE=True
+# Dynamic Ports
+INVENTREE_WEB_PORT=$BACKEND_PORT
+FRONTEND_PORT=$FRONTEND_PORT
 EOF
         echo -e "  ${GREEN}✓${NC} Created default .env"
     fi
 else
-    echo -e "  ${GREEN}✓${NC} .env already exists"
+    # If .env exists, ensure we have ports set if they are missing
+    if ! grep -q "INVENTREE_WEB_PORT" .env; then
+        echo "INVENTREE_WEB_PORT=$BACKEND_PORT" >> .env
+        echo "FRONTEND_PORT=$FRONTEND_PORT" >> .env
+        echo -e "  ${GREEN}✓${NC} Added dynamic ports to existing .env"
+    else
+        # Read existing ports for display
+        BACKEND_PORT=$(grep INVENTREE_WEB_PORT .env | cut -d '=' -f2)
+        FRONTEND_PORT=$(grep FRONTEND_PORT .env | cut -d '=' -f2)
+        echo -e "  ${BLUE}ℹ${NC} Using existing ports configuration"
+    fi
 fi
 
 # -----------------------------------------------------------------------------
 # Docker Stack Launch
 # -----------------------------------------------------------------------------
-echo -e "${YELLOW}[4/6]${NC} Starting Docker containers..."
+echo -e "${YELLOW}[5/7]${NC} Starting Docker containers..."
 
 # Ensure we pull the latest images
 # $COMPOSE_CMD pull -q
@@ -157,12 +196,12 @@ echo -e "  ${GREEN}✓${NC} Containers started"
 # -----------------------------------------------------------------------------
 # Wait for InvenTree to be healthy
 # -----------------------------------------------------------------------------
-echo -e "${YELLOW}[5/6]${NC} Waiting for InvenTree to be ready..."
+echo -e "${YELLOW}[6/7]${NC} Waiting for InvenTree to be ready..."
 
 MAX_WAIT=120
 WAITED=0
 while [ $WAITED -lt $MAX_WAIT ]; do
-    if curl -s http://localhost:8000/api/ > /dev/null 2>&1; then
+    if curl -s http://localhost:$BACKEND_PORT/api/ > /dev/null 2>&1; then
         echo -e "  ${GREEN}✓${NC} InvenTree API is ready!"
         break
     fi
@@ -179,7 +218,7 @@ fi
 # -----------------------------------------------------------------------------
 # Seed Database (Locations)
 # -----------------------------------------------------------------------------
-echo -e "${YELLOW}[6/6]${NC} Seeding warehouse locations..."
+echo -e "${YELLOW}[7/7]${NC} Seeding warehouse locations..."
 
 # Check Python for seeding
 if ! command -v python3 &> /dev/null; then
@@ -207,9 +246,9 @@ echo -e "${GREEN}║${NC}                    ${GREEN}✅ INSTALLATION COMPLETE${
 echo -e "${GREEN}╚═══════════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${CYAN}BACKEND (InvenTree API):${NC}"
-echo -e "  URL:      ${BLUE}http://localhost:8000${NC}"
-echo -e "  API:      ${BLUE}http://localhost:8000/api/${NC}"
-echo -e "  Admin UI: ${BLUE}http://localhost:8000/admin/${NC}"
+echo -e "  URL:      ${BLUE}http://localhost:$BACKEND_PORT${NC}"
+echo -e "  API:      ${BLUE}http://localhost:$BACKEND_PORT/api/${NC}"
+echo -e "  Admin UI: ${BLUE}http://localhost:$BACKEND_PORT/admin/${NC}"
 echo ""
 echo -e "${CYAN}LOGIN CREDENTIALS:${NC}"
 echo -e "  Username: ${GREEN}admin${NC}"
@@ -217,8 +256,8 @@ echo -e "  Password: ${GREEN}admin123${NC}"
 echo ""
 echo -e "${CYAN}FRONTEND (Omiximo UI):${NC}"
 echo -e "  To start the custom frontend, run:"
-echo -e "  ${YELLOW}cd frontend && python3 -m http.server 3001${NC}"
-echo -e "  Then open: ${BLUE}http://localhost:3001${NC}"
+echo -e "  ${YELLOW}cd frontend && python3 -m http.server $FRONTEND_PORT${NC}"
+echo -e "  Then open: ${BLUE}http://localhost:$FRONTEND_PORT${NC}"
 echo ""
 echo -e "${CYAN}USEFUL COMMANDS:${NC}"
 echo -e "  View logs:    ${YELLOW}docker logs -f inventree-server${NC}"
