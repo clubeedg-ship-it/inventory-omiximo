@@ -139,10 +139,10 @@ get_input() {
 }
 
 # Backend Port
-get_input "Backend (API) Port" "8000" "INVENTREE_WEB_PORT"
+get_input "Backend (API) Port" "9000" "INVENTREE_WEB_PORT"
 
 # Frontend Port
-get_input "Frontend (UI) Port " "3001" "FRONTEND_PORT"
+get_input "Frontend (UI) Port " "1441" "FRONTEND_PORT"
 
 # Export for current session usage
 export INVENTREE_WEB_PORT
@@ -289,9 +289,8 @@ echo -e "  Username: ${GREEN}admin${NC}"
 echo -e "  Password: ${GREEN}admin123${NC}"
 echo ""
 echo -e "${CYAN}FRONTEND (Omiximo UI):${NC}"
-echo -e "  To start the custom frontend, run:"
-echo -e "  ${YELLOW}cd frontend && python3 -m http.server $FRONTEND_PORT${NC}"
-echo -e "  Then open: ${BLUE}http://localhost:$FRONTEND_PORT${NC}"
+echo -e "  Status:   ${GREEN}Running (Auto-started)${NC}"
+echo -e "  Open URL: ${BLUE}http://localhost:$FRONTEND_PORT${NC}"
 echo ""
 echo -e "${CYAN}USEFUL COMMANDS:${NC}"
 echo -e "  View logs:    ${YELLOW}docker logs -f inventree-server${NC}"

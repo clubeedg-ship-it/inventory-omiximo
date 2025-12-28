@@ -9,7 +9,8 @@
 // Configuration
 // =============================================================================
 const CONFIG = {
-    API_BASE: 'http://localhost:8000/api',
+    // Check for runtime config (from env.js) or fallback to default
+    API_BASE: (window.ENV && window.ENV.API_BASE) ? window.ENV.API_BASE : 'http://localhost:8000/api',
     API_TOKEN: null,
     REFRESH_INTERVAL: 30000,
     SCAN_TIMEOUT: 100,  // Reduced for faster scanner detection

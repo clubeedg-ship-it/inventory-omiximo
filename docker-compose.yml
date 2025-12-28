@@ -117,6 +117,23 @@ services:
     networks:
       - inventree_network
 
+  # ---------------------------------------------------------------------------
+  # Omiximo Frontend (Nginx Kiosk UI)
+  # ---------------------------------------------------------------------------
+  inventree-frontend:
+    build: ./frontend
+    container_name: inventree-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-1441}:80"
+    environment:
+      - API_URL=http://localhost:${INVENTREE_WEB_PORT:-8000}/api
+    depends_on:
+      inventree-server:
+        condition: service_started
+    networks:
+      - inventree_network
+
 # =============================================================================
 # Volumes
 # =============================================================================
