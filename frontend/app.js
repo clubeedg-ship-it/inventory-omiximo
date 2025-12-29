@@ -83,6 +83,16 @@ const dom = {
 };
 
 // =============================================================================
+// Tenant-Aware Query Builder
+// =============================================================================
+function buildTenantQuery(baseParams = {}) {
+    const tenantFilter = (typeof tenant !== 'undefined' && tenant.current) ? tenant.getFilter() : {};
+    const merged = { ...baseParams, ...tenantFilter };
+    const query = new URLSearchParams(merged).toString();
+    return query ? `?${query}` : '';
+}
+
+// =============================================================================
 // API Client
 // =============================================================================
 const api = {
@@ -128,12 +138,14 @@ const api = {
     },
 
     async getLocations() {
-        const data = await this.request('/stock/location/?limit=500');
+        const query = buildTenantQuery({ limit: 500 });
+        const data = await this.request(`/stock/location/${query}`);
         return data.results || data;
     },
 
     async getParts() {
-        const data = await this.request('/part/?limit=500');
+        const query = buildTenantQuery({ limit: 500 });
+        const data = await this.request(`/part/${query}`);
         return data.results || data;
     },
 
@@ -1684,50 +1696,52 @@ const partManager = {
     },
 
     /**
-     * Populate shelf locations (cells without specific A/B bins)
-     * Only shows cells like A-1-3 not A-1-3-A
+     * Populate shelf locations dropdown with all bins
+     * Shows bins like A-1-3-A, A-1-3-B, B-4-1 (power supplies)
      */
     populateLocations() {
         const select = document.getElementById('partLocation');
         if (!select) return;
 
-        select.innerHTML = '<option value="">Select shelf...</option>';
+        select.innerHTML = '<option value="">Select bin...</option>';
 
-        // Get unique cells (without the final bin letter)
-        const cells = new Map();
+        // Collect all leaf bins (locations with A/B suffix or solid bins like B-4-x)
+        const bins = [];
         for (const [name, loc] of state.locations) {
             const parts = name.split('-');
-            // Cell format: A-1-3 (3 parts) - collect both bins
-            if (parts.length === 4) {
-                const cellName = parts.slice(0, 3).join('-'); // A-1-3
-                if (!cells.has(cellName)) {
-                    cells.set(cellName, { binA: null, binB: null });
-                }
-                if (parts[3] === 'A') cells.get(cellName).binA = loc.pk;
-                if (parts[3] === 'B') cells.get(cellName).binB = loc.pk;
-            } else if (parts.length === 3) {
-                // Already a cell without sub-bins
-                if (!cells.has(name)) {
-                    cells.set(name, { pk: loc.pk });
-                }
+            // Bin format: A-1-3-A or A-1-3-B (4 parts) OR B-4-x (3 parts for power supplies)
+            if (parts.length === 4 || (parts.length === 3 && parts[0] === 'B' && parts[1] === '4')) {
+                bins.push({ name, pk: loc.pk });
             }
         }
 
-        // Sort and add options
-        const sorted = [...cells.keys()].sort((a, b) => {
-            const pa = a.split('-');
-            const pb = b.split('-');
+        // Natural sort: zone, column, level, bin letter
+        bins.sort((a, b) => {
+            const pa = a.name.split('-');
+            const pb = b.name.split('-');
+
+            // Zone (A/B)
             if (pa[0] !== pb[0]) return pa[0].localeCompare(pb[0]);
-            if (parseInt(pa[1]) !== parseInt(pb[1])) return parseInt(pa[1]) - parseInt(pb[1]);
-            return parseInt(pa[2]) - parseInt(pb[2]);
+            // Column (1-4)
+            const colA = parseInt(pa[1]) || 0;
+            const colB = parseInt(pb[1]) || 0;
+            if (colA !== colB) return colA - colB;
+            // Level (1-7)
+            const lvlA = parseInt(pa[2]) || 0;
+            const lvlB = parseInt(pb[2]) || 0;
+            if (lvlA !== lvlB) return lvlA - lvlB;
+            // Bin letter (A/B)
+            return (pa[3] || '').localeCompare(pb[3] || '');
         });
 
-        sorted.forEach(cellName => {
+        bins.forEach(({ name, pk }) => {
             const opt = document.createElement('option');
-            opt.value = cellName;
-            opt.textContent = cellName;
+            opt.value = pk;
+            opt.textContent = name;
             select.appendChild(opt);
         });
+
+        console.log(`📦 Loaded ${bins.length} bins into location dropdown`);
     },
 
     /**
@@ -2195,6 +2209,21 @@ async function init() {
 // Auth Module
 // =============================================================================
 const auth = {
+    /**
+     * Get authorization headers for API requests
+     * @returns {Object} Headers object with Content-Type, Accept, and Authorization
+     */
+    getHeaders() {
+        const headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        };
+        if (CONFIG.API_TOKEN) {
+            headers['Authorization'] = `Token ${CONFIG.API_TOKEN}`;
+        }
+        return headers;
+    },
+
     init() {
         const form = document.getElementById('loginForm');
         if (form) {

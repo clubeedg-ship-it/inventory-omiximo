@@ -131,13 +131,25 @@ const tenant = {
     /**
      * Refresh current view data with new tenant context
      */
-    refreshData() {
-        // Trigger data refresh based on current view
-        if (typeof catalog !== 'undefined' && catalog.refresh) {
-            catalog.refresh();
+    async refreshData() {
+        console.log('🔄 Refreshing data for tenant:', this.current?.name || 'ALL');
+
+        // Reload locations and parts with new tenant filter
+        if (typeof loadLocations === 'function') {
+            await loadLocations();
         }
-        if (typeof wall !== 'undefined' && wall.refresh) {
-            wall.refresh();
+        if (typeof loadParts === 'function') {
+            await loadParts();
+        }
+
+        // Refresh wall grid
+        if (typeof wall !== 'undefined' && wall.loadLiveData) {
+            await wall.loadLiveData();
+        }
+
+        // Refresh catalog
+        if (typeof catalog !== 'undefined' && catalog.render) {
+            catalog.render();
         }
     },
 
@@ -164,23 +176,25 @@ const tenant = {
                         </option>
                     `).join('')}
                 </select>
+                <button class="btn-add-tenant" onclick="tenant.showCreateModal()" title="Create Tenant">+</button>
             </div>
         `;
     },
 
     /**
      * Get current tenant filter for API calls
-     * Returns query params to filter by tenant's locations
+     * Returns query params to filter by tenant's locations/parts
      */
     getFilter() {
         if (!this.current) {
             return {}; // No filter for super admin viewing all
         }
 
-        // Filter by tenant's root location
-        // This assumes each tenant has a root location named "[TenantName] Warehouse"
+        // Filter by tenant's root location (parent warehouse)
+        // Locations: filter by parent name containing tenant name
+        // Parts: we'll rely on location filtering for stock visibility
         return {
-            location__name__icontains: this.current.displayName
+            parent__name__icontains: this.current.name
         };
     },
 
