@@ -2229,7 +2229,9 @@ const auth = {
                 spinner.classList.add('hidden');
             }
         } catch (e) {
-            errorEl.textContent = 'Connection failed. Check InvenTree server.';
+            console.error('Login error:', e);
+            errorEl.innerHTML = `Connection Error: ${e.message}<br><small>API: ${CONFIG.API_BASE}</small>`;
+            if (window.toast) toast.show(`API Error: ${e.message}`, 'error');
             btnText.textContent = 'Sign In';
             spinner.classList.add('hidden');
         }
