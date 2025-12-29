@@ -2180,6 +2180,12 @@ const auth = {
             profitEngine.init();
         }
 
+        // Initialize Tenant Module
+        if (typeof tenant !== 'undefined') {
+            await tenant.checkSuperAdmin();
+            tenant.init();
+        }
+
         // Check low stock
         await alerts.checkLowStock();
 

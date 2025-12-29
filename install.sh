@@ -252,7 +252,7 @@ fi
 # -----------------------------------------------------------------------------
 # Seed Database (Locations)
 # -----------------------------------------------------------------------------
-echo -e "${YELLOW}[7/7]${NC} Seeding warehouse locations..."
+echo -e "${YELLOW}[7/8]${NC} Seeding warehouse locations..."
 
 # Check Python for seeding
 if ! command -v python3 &> /dev/null; then
@@ -269,6 +269,20 @@ else
             echo -e "  ${YELLOW}⚠${NC} Seeding skipped (may already be seeded)"
         }
     fi
+fi
+
+# -----------------------------------------------------------------------------
+# Seed Tenants
+# -----------------------------------------------------------------------------
+echo -e "${YELLOW}[8/8]${NC} Seeding default tenant..."
+
+if [ -f "seed_tenants.py" ]; then
+    export INVENTREE_API_BASE="http://localhost:$INVENTREE_WEB_PORT/api"
+    python3 seed_tenants.py 2>/dev/null && {
+        echo -e "  ${GREEN}✓${NC} Default tenant configured"
+    } || {
+        echo -e "  ${YELLOW}⚠${NC} Tenant seeding skipped (try again after login)"
+    }
 fi
 
 # -----------------------------------------------------------------------------
