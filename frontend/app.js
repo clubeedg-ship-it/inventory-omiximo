@@ -54,9 +54,6 @@ const dom = {
     scanStatus: $('scanStatus'),
     scanText: $('scanText'),
 
-    // Theme
-    themeToggle: $('themeToggleHUD'),
-
     // Modals
     binModal: $('binModal'),
     binModalClose: $('binModalClose'),
