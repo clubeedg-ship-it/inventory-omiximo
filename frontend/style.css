@@ -2659,3 +2659,204 @@ body.not-authenticated .toast {
     transform: scale(1.1);
     box-shadow: 0 0 15px var(--accent-glow);
 }
+
+/* -----------------------------------------------------------------------------
+   Settings Panel (Gear Icon + Floating Panel)
+   ----------------------------------------------------------------------------- */
+.settings-wrapper {
+    position: relative;
+}
+
+.settings-gear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: 50%;
+    cursor: pointer;
+    color: var(--text-secondary);
+    box-shadow:
+        0 4px 20px rgba(0, 0, 0, 0.2),
+        inset 0 1px 1px rgba(255, 255, 255, 0.05);
+    transition: all 300ms ease;
+}
+
+.settings-gear:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    transform: rotate(45deg);
+    box-shadow: 0 0 20px var(--accent-glow);
+}
+
+.settings-gear.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    transform: rotate(90deg);
+}
+
+.settings-gear svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Floating Settings Panel */
+.settings-panel {
+    position: absolute;
+    top: calc(100% + 12px);
+    right: 0;
+    width: 280px;
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px) scale(0.95);
+    transition: all 200ms ease;
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.settings-panel.active {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+}
+
+.settings-header {
+    padding: var(--space-md);
+    border-bottom: 1px solid var(--border);
+}
+
+.settings-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.settings-section {
+    padding: var(--space-md);
+    border-bottom: 1px solid var(--border);
+}
+
+.settings-section:last-child {
+    border-bottom: none;
+}
+
+/* User Info */
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-light);
+    border: 1px solid var(--accent);
+    border-radius: 50%;
+    font-size: 1.25rem;
+}
+
+.user-details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.user-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.user-role {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+/* Setting Row */
+.setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.setting-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Theme Switch */
+.theme-switch {
+    display: flex;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 50px;
+    padding: 2px;
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.theme-option {
+    padding: var(--space-xs) var(--space-sm);
+    font-size: 0.75rem;
+    border-radius: 50px;
+    transition: all var(--transition);
+    color: var(--text-muted);
+}
+
+.theme-option.active {
+    background: var(--accent);
+    color: white;
+}
+
+/* Logout Button */
+.settings-footer {
+    padding: var(--space-md);
+}
+
+.btn-logout {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: transparent;
+    border: 1px solid #B71C1C;
+    border-radius: var(--radius-md);
+    color: #EF5350;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.btn-logout:hover {
+    background: rgba(183, 28, 28, 0.15);
+    box-shadow: 0 0 15px rgba(183, 28, 28, 0.3);
+}
+
+.btn-logout svg {
+    width: 16px;
+    height: 16px;
+}
