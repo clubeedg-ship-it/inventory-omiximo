@@ -28,7 +28,8 @@ if [ "$NEW_PASSWORD" != "$CONFIRM_PASSWORD" ]; then
 fi
 
 # Reset password
-docker exec -it inventree-server python manage.py shell -c "
+# Reset password
+docker exec -it inventree-server /bin/bash -c "cd /home/inventree/src/backend/InvenTree && python manage.py shell -c \"
 from django.contrib.auth import get_user_model
 User = get_user_model()
 try:
@@ -40,7 +41,7 @@ except User.DoesNotExist:
     print('❌ Admin user not found. Creating...')
     User.objects.create_superuser('admin', 'admin@inventory.local', '$NEW_PASSWORD')
     print('✅ Admin user created.')
-"
+\""
 
 echo ""
 echo "You can now login with:"
