@@ -2860,3 +2860,25 @@ body.not-authenticated .toast {
     width: 16px;
     height: 16px;
 }
+
+/* =============================================================================
+   FIX: Ensure settings panel and modals are hidden by default
+   ============================================================================= */
+   
+/* Settings panel default state - guaranteed hidden */
+#settingsPanel {
+    display: none;
+}
+
+#settingsPanel.active {
+    display: block;
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+}
+
+/* Settings gear default visibility */
+#settingsGear {
+    display: flex !important;
+}
+

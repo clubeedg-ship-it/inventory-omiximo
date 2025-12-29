@@ -518,8 +518,10 @@
     </div>
 
     <!-- Create Tenant Modal (Super Admin) -->
-    <div class="modal" id="createTenantModal">
-        <div class="modal-content">
+    <div class="modal-overlay" id="createTenantModal">
+        <div class="modal">
+            <button class="modal-close"
+                onclick="document.getElementById('createTenantModal').classList.remove('active')">&times;</button>
             <div class="modal-header">
                 <h2 class="modal-title">Create New Tenant</h2>
             </div>
