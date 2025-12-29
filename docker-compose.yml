@@ -125,7 +125,7 @@ services:
     ports:
       - "${FRONTEND_PORT:-1441}:80"
     environment:
-      - API_URL=http://localhost:${INVENTREE_WEB_PORT:-8000}/api
+      - API_URL=/api
     depends_on:
       inventree-server:
         condition: service_started
