@@ -1,5 +1,3 @@
-version: "3.8"
-
 # =============================================================================
 # Lean Inventory System - Docker Compose Stack
 # Headless InvenTree Backend for Custom Kiosk Frontend
