@@ -1364,6 +1364,26 @@ body {
     font-size: 0.875rem;
 }
 
+/* Restoring Chart Container Styles */
+.chart-container {
+    background: var(--glass);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+    height: 350px;
+    /* Fixed height to prevent infinite loop */
+    position: relative;
+    /* Crucial for Chart.js responsiveness */
+    display: flex;
+    flex-direction: column;
+}
+
+.chart-container canvas {
+    flex: 1;
+    width: 100% !important;
+}
+
 /* Inventory Breakdown Styling */
 .inventory-breakdown-container {
     background: var(--glass);
@@ -2203,6 +2223,48 @@ body {
 
 .batch-error {
     color: var(--signal-critical);
+}
+
+/* Record Sale Button */
+.btn-record-sale {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-lg);
+    background: var(--accent);
+    border: none;
+    border-radius: var(--radius-sm);
+    color: #fff;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 200ms ease;
+    align-self: flex-start;
+    /* Prevent stretching in flex container */
+    height: fit-content;
+    /* Ensure it fits content */
+}
+
+.btn-record-sale:hover {
+    background: var(--accent-hover);
+    box-shadow: 0 0 15px var(--accent-glow);
+}
+
+.btn-record-sale svg {
+    width: 16px;
+    height: 16px;
+    min-width: 16px;
+    /* consistent size */
+}
+
+/* Record Sale Modal */
+.modal-record-sale {
+    max-width: 560px;
+}
+
+/* Utility Classes */
+.hidden {
+    display: none !important;
 }
 
 /* Add Batch Button */
