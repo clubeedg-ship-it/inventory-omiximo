@@ -1252,52 +1252,185 @@ body {
 /* -----------------------------------------------------------------------------
    Profit View
    ----------------------------------------------------------------------------- */
-.profit-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+/* Breadcrumb Navigation */
+.breadcrumb {
     margin-bottom: var(--space-lg);
-}
-
-.profit-header h2 {
-    font-size: 1.25rem;
-}
-
-.profit-summary {
-    display: flex;
-    gap: var(--space-lg);
-    align-items: center;
-}
-
-/* Record Sale Button */
-.btn-record-sale {
     display: flex;
     align-items: center;
     gap: var(--space-sm);
-    padding: var(--space-sm) var(--space-lg);
-    background: var(--accent);
-    border: none;
-    border-radius: var(--radius-sm);
-    color: #fff;
     font-size: 0.875rem;
-    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.crumb-item {
     cursor: pointer;
-    transition: all 200ms ease;
+    transition: color 0.2s;
 }
 
-.btn-record-sale:hover {
-    background: var(--accent-hover);
-    box-shadow: 0 0 15px var(--accent-glow);
+.crumb-item.active {
+    color: var(--text-primary);
+    font-weight: 600;
+    cursor: default;
 }
 
-.btn-record-sale svg {
-    width: 16px;
-    height: 16px;
+.crumb-item:not(:last-child):after {
+    content: "›";
+    margin-left: var(--space-sm);
+    color: var(--text-secondary);
 }
 
-/* Record Sale Modal */
-.modal-record-sale {
-    max-width: 560px;
+.crumb-item.clickable:hover {
+    color: var(--accent);
+}
+
+/* Profit View Layout */
+.profit-header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+    margin-bottom: var(--space-xl);
+}
+
+.profit-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-lg);
+    width: 100%;
+}
+
+.summary-card {
+    background: var(--glass);
+    /* Changed from .glass */
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.summary-card.interactive {
+    cursor: pointer;
+    border: 1px solid var(--accent);
+    background: linear-gradient(135deg, rgba(0, 80, 102, 0.1), rgba(0, 0, 0, 0));
+}
+
+.summary-card.interactive:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+.card-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.mini-select {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    cursor: pointer;
+    outline: none;
+}
+
+.mini-select:hover {
+    color: var(--accent);
+}
+
+/* Chart Header Controls */
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-md);
+}
+
+.chart-controls {
+    display: flex;
+    gap: var(--space-md);
+}
+
+.glass-select {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    color: var(--text-primary);
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 0.875rem;
+}
+
+/* Inventory Breakdown Styling */
+.inventory-breakdown-container {
+    background: var(--glass);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-xl);
+}
+
+.breakdown-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-xl);
+    padding-bottom: var(--space-lg);
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.total-value-hero {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--accent);
+    font-family: monospace;
+}
+
+.inventory-table-wrapper {
+    overflow-x: auto;
+}
+
+.inventory-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.inventory-table th {
+    text-align: left;
+    padding: var(--space-md);
+    color: var(--text-secondary);
+    font-weight: 500;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.inventory-table td {
+    padding: var(--space-md);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.inventory-table tr.batch-row {
+    background: rgba(0, 0, 0, 0.2);
+    font-size: 0.9em;
+}
+
+.inventory-table tr.product-row td {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.menu-arrow {
+    display: inline-block;
+    transition: transform 0.2s;
+    margin-right: 8px;
+    font-size: 0.8em;
+}
+
+.product-row.expanded .menu-arrow {
+    transform: rotate(90deg);
+}
 }
 
 .component-picker {
@@ -2587,6 +2720,7 @@ body.not-authenticated .main,
 body.not-authenticated .toast {
     display: none;
 }
+
 /* -----------------------------------------------------------------------------
    Tenant Selector (Multi-Tenancy)
    ----------------------------------------------------------------------------- */
@@ -2864,7 +2998,7 @@ body.not-authenticated .toast {
 /* =============================================================================
    FIX: Ensure settings panel and modals are hidden by default
    ============================================================================= */
-   
+
 /* Settings panel default state - guaranteed hidden */
 #settingsPanel {
     display: none;
@@ -2882,3 +3016,163 @@ body.not-authenticated .toast {
     display: flex !important;
 }
 
+/* =============================================================================
+   Light Theme Overrides - Modals & Form Elements
+   ============================================================================= */
+
+[data-theme="light"] .modal {
+    background: #FFFFFF !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: 1px solid rgba(0, 80, 102, 0.25) !important;
+    box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.2),
+        0 8px 25px rgba(0, 0, 0, 0.12),
+        0 0 0 1px rgba(255, 255, 255, 0.8) inset !important;
+}
+
+[data-theme="light"] .modal-header {
+    background: rgba(0, 80, 102, 0.03);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .modal-body {
+    background: var(--bg-elevated);
+}
+
+[data-theme="light"] .modal-footer {
+    background: rgba(0, 80, 102, 0.02);
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* Form inputs in light mode */
+[data-theme="light"] .form-group input,
+[data-theme="light"] .form-group select,
+[data-theme="light"] .form-group textarea {
+    background: #FFFFFF;
+    color: var(--text-primary);
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-bottom: 2px solid var(--accent);
+}
+
+[data-theme="light"] .form-group input:focus,
+[data-theme="light"] .form-group select:focus,
+[data-theme="light"] .form-group textarea:focus {
+    background: #FFFFFF;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0, 80, 102, 0.1);
+}
+
+[data-theme="light"] .form-group input::placeholder {
+    color: var(--text-muted);
+}
+
+/* Select dropdown options */
+[data-theme="light"] .form-group select option {
+    background: #FFFFFF;
+    color: var(--text-primary);
+}
+
+/* Modal overlay in light mode */
+[data-theme="light"] .modal-overlay {
+    background: rgba(0, 0, 0, 0.4);
+}
+
+/* Alert panel in light mode */
+[data-theme="light"] .alert-panel {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 80, 102, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+/* Settings panel in light mode */
+[data-theme="light"] .settings-panel {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 80, 102, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+/* Buttons in light mode */
+[data-theme="light"] .btn-confirm {
+    background: var(--accent);
+    color: #FFFFFF;
+}
+
+[data-theme="light"] .btn-secondary,
+[data-theme="light"] .btn-cancel {
+    background: transparent;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .btn-secondary:hover,
+[data-theme="light"] .btn-cancel:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+/* Toast in light mode */
+[data-theme="light"] .toast {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 80, 102, 0.2);
+    color: var(--text-primary);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+/* Catalog cards in light mode */
+[data-theme="light"] .catalog-card {
+    background: #FFFFFF;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .catalog-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 16px rgba(0, 80, 102, 0.15);
+}
+
+/* Bin modal sections in light mode */
+[data-theme="light"] .bin-section {
+    background: rgba(0, 0, 0, 0.02);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* Form dividers in light mode */
+[data-theme="light"] .form-divider {
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .form-divider span {
+    background: var(--bg-elevated);
+}
+
+/* Login modal specific */
+[data-theme="light"] .modal-login {
+    background: rgba(255, 255, 255, 0.98);
+}
+
+/* JIT display in light mode */
+[data-theme="light"] .jit-rop-display {
+    background: rgba(0, 80, 102, 0.08);
+    color: var(--accent);
+}
+
+/* Component picker in light mode */
+[data-theme="light"] .components-list {
+    background: rgba(0, 0, 0, 0.02);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .component-item {
+    background: #FFFFFF;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* Financial summary in light mode */
+[data-theme="light"] .financial-summary {
+    background: rgba(0, 80, 102, 0.04);
+    border: 1px solid rgba(0, 80, 102, 0.1);
+}

@@ -11,6 +11,10 @@
 const profitState = {
     transactions: [],
     totalMargin: 0,
+    inventoryValue: 0,
+    currentScope: 'day', // day | week | month | year
+    cashFlowScope: 'today',
+    currentSubView: 'main', // main | inventory
     components: [], // Components added to current sale
     stockCache: new Map() // partId -> stock items for FIFO
 };
@@ -330,33 +334,386 @@ const recordSale = {
 // Profit Engine Core
 // =============================================================================
 const profitEngine = {
-    init() {
+    chart: null,
+
+    async init() {
         // Initialize Record Sale module
         recordSale.init();
 
         // Load saved transactions from localStorage
         recordSale.loadTransactions();
 
+        // Calculate initial inventory value (async)
+        // Wait a bit for token to be available if needed, or call it safely
+        setTimeout(() => this.calculateInventoryValue(), 1000);
+
+        // Setup Event Listeners
+        this.setupEventListeners();
+
         // Render UI
         this.render();
     },
 
+    setupEventListeners() {
+        // Chart Time Scope
+        const scopeSelect = document.getElementById('chartTimeScope');
+        if (scopeSelect) {
+            scopeSelect.addEventListener('change', (e) => {
+                profitState.currentScope = e.target.value;
+                this.renderChart();
+            });
+        }
+
+        // Cash Flow Scope
+        const cashFlowSelect = document.getElementById('cashFlowScope');
+        if (cashFlowSelect) {
+            cashFlowSelect.addEventListener('change', (e) => {
+                profitState.cashFlowScope = e.target.value;
+                this.renderSummary(); // Summary handles cash flow update
+            });
+        }
+
+        // Inventory Value Card Click -> Drill down
+        const invCard = document.getElementById('cardInventoryValue');
+        if (invCard) {
+            invCard.addEventListener('click', () => {
+                this.navigateToSubView('inventory');
+            });
+        }
+
+        // Breadcrumb Navigation
+        const breadcrumb = document.getElementById('profitBreadcrumb');
+        if (breadcrumb) {
+            breadcrumb.addEventListener('click', (e) => {
+                if (e.target.classList.contains('crumb-item') && e.target.dataset.target) {
+                    this.navigateToSubView(e.target.dataset.target);
+                }
+            });
+        }
+    },
+
+    navigateToSubView(viewName) {
+        profitState.currentSubView = viewName;
+        const mainView = document.getElementById('profitMainView');
+        const invView = document.getElementById('profitInventoryView');
+        const breadcrumb = document.getElementById('profitBreadcrumb');
+
+        // Reset Breadcrumb Base
+        breadcrumb.innerHTML = '<span class="crumb-item clickable" data-target="main">Profitability Engine</span>';
+
+        if (viewName === 'inventory') {
+            mainView.classList.add('hidden');
+            invView.classList.remove('hidden');
+
+            // Add breadcrumb item
+            const span = document.createElement('span');
+            span.className = 'crumb-item active';
+            span.textContent = 'Inventory Valuation';
+            breadcrumb.appendChild(span);
+
+            this.renderInventoryBreakdown();
+        } else {
+            // Default to main
+            mainView.classList.remove('hidden');
+            invView.classList.add('hidden');
+
+            // Fix breadcrumb for main (remove clickable class from last item)
+            breadcrumb.innerHTML = '<span class="crumb-item active" data-target="main">Profitability Engine</span>';
+
+            this.renderChart(); // Re-render chart to ensure size is correct
+        }
+    },
+
+    async calculateInventoryValue() {
+        try {
+            if (!state.token) return;
+
+            // Fetch all stock items
+            const response = await fetch(`${env.API_URL}/stock/`, {
+                headers: { 'Authorization': `Token ${state.token}` }
+            });
+
+            if (!response.ok) throw new Error('Failed to fetch stock');
+
+            const stockItems = await response.json();
+
+            let totalVal = 0;
+            const productBreakdown = {}; // We will implement breakdown logic later/here if easy
+
+            stockItems.forEach(item => {
+                const qty = parseFloat(item.quantity) || 0;
+                // Use purchase_price if available, otherwise 0 for now as per constraints to use EXACT batch cost
+                const price = item.purchase_price ? parseFloat(item.purchase_price) : 0;
+                totalVal += qty * price;
+            });
+
+            profitState.inventoryValue = totalVal;
+
+            // Update UI if we are in main view
+            this.renderSummary();
+
+            // Also store for breakdown rendering if needed, or re-fetch in renderInventoryBreakdown
+            profitState.stockItems = stockItems; // Cache it
+
+        } catch (err) {
+            console.error('Inventory Value Calc Error:', err);
+        }
+    },
+
     render() {
         this.renderSummary();
+        this.renderChart();
         this.renderTransactions();
+    },
+
+    renderChart() {
+        const canvas = document.getElementById('profitChart');
+        if (!canvas) return;
+
+        const rect = canvas.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+
+        if (this.chart) {
+            this.chart.destroy();
+        }
+
+        const scope = profitState.currentScope;
+        const transactions = profitState.transactions;
+        const now = new Date();
+
+        // Group Data Logic
+        const groupedData = {};
+
+        transactions.forEach(tx => {
+            const txDate = new Date(tx.date);
+            let key;
+
+            if (scope === 'day') {
+                if (txDate.toDateString() === now.toDateString()) {
+                    key = txDate.getHours() + ':00';
+                }
+            } else if (scope === 'week') {
+                const diffTime = Math.abs(now - txDate);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                if (diffDays <= 7) {
+                    key = txDate.toLocaleDateString('en-US', { weekday: 'short' });
+                }
+            } else if (scope === 'month') {
+                if (txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear()) {
+                    key = txDate.getDate();
+                }
+            } else if (scope === 'year') {
+                if (txDate.getFullYear() === now.getFullYear()) {
+                    key = txDate.toLocaleDateString('en-US', { month: 'short' });
+                }
+            }
+
+            if (key) {
+                if (!groupedData[key]) groupedData[key] = 0;
+                groupedData[key] += (tx.margin || 0);
+            }
+        });
+
+        let labels = Object.keys(groupedData);
+        let dataPoints = Object.values(groupedData);
+
+        // Fallback for empty/sample
+        if (labels.length === 0) {
+            if (scope === 'day') labels = ['9:00', '12:00', '15:00', '18:00'];
+            else if (scope === 'week') labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            else if (scope === 'month') labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+            else labels = ['Q1', 'Q2', 'Q3', 'Q4'];
+
+            dataPoints = labels.map(() => 0);
+        }
+
+        const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+        const textColor = isDark ? '#ffffff' : '#333333';
+        const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+
+        try {
+            this.chart = new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Profit Margin',
+                        data: dataPoints,
+                        borderColor: '#00dcb4',
+                        backgroundColor: 'rgba(0, 220, 180, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#005066',
+                        pointBorderColor: '#fff',
+                        pointRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: textColor },
+                            grid: { display: false }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: textColor,
+                                callback: value => '€' + value
+                            },
+                            grid: { color: gridColor, borderDash: [5, 5] }
+                        }
+                    }
+                }
+            });
+        } catch (err) {
+            console.error('Chart Render Error:', err);
+        }
     },
 
     renderSummary() {
         const marginEl = document.getElementById('todayMargin');
         const countEl = document.getElementById('txCount');
+        const invEl = document.getElementById('totalInventoryValue');
+        const cashFlowEl = document.getElementById('cashFlowValue');
+        const heroInvEl = document.getElementById('heroInventoryValue');
 
+        // Today's Margin
+        const todayMargin = profitState.totalMargin; // Simplified for MVP (should filter by today)
         if (marginEl) {
-            marginEl.textContent = `${profitState.totalMargin >= 0 ? '' : '-'}€${Math.abs(profitState.totalMargin).toFixed(2)}`;
-            marginEl.className = `value ${profitState.totalMargin >= 0 ? 'positive' : 'negative'}`;
+            marginEl.textContent = `${todayMargin >= 0 ? '' : '-'}€${Math.abs(todayMargin).toFixed(2)}`;
+            marginEl.className = `value ${todayMargin >= 0 ? 'positive' : 'negative'}`;
         }
 
+        // Transactions Count
         if (countEl) {
             countEl.textContent = profitState.transactions.length;
+        }
+
+        // Inventory Value
+        if (invEl) {
+            invEl.textContent = `€${profitState.inventoryValue.toFixed(2)}`;
+        }
+        if (heroInvEl) {
+            heroInvEl.textContent = `€${profitState.inventoryValue.toFixed(2)}`;
+        }
+
+        // Cash Flow (Sales Total based on scope)
+        if (cashFlowEl) {
+            let totalSales = 0;
+            const scope = profitState.cashFlowScope;
+            const now = new Date();
+
+            profitState.transactions.forEach(tx => {
+                const txDate = new Date(tx.date);
+                let include = false;
+
+                if (scope === 'today') {
+                    if (txDate.toDateString() === now.toDateString()) include = true;
+                } else if (scope === 'month') {
+                    if (txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear()) include = true;
+                }
+
+                if (include) totalSales += (tx.sale || 0);
+            });
+
+            cashFlowEl.textContent = `€${totalSales.toFixed(2)}`;
+        }
+    },
+
+    /**
+     * Render drill-down table of inventory
+     */
+    renderInventoryBreakdown() {
+        const tbody = document.getElementById('inventoryBreakdownBody');
+        if (!tbody) return;
+
+        if (!profitState.stockItems || profitState.stockItems.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 2rem;">No stock data available</td></tr>';
+            return;
+        }
+
+        // Group by Part
+        const parts = {};
+
+        profitState.stockItems.forEach(item => {
+            if (!item.part) return;
+            const partId = item.part;
+            const partName = item.part_detail ? item.part_detail.name : `Part #${partId}`;
+
+            if (!parts[partId]) {
+                parts[partId] = {
+                    name: partName,
+                    totalQty: 0,
+                    totalValue: 0,
+                    batches: []
+                };
+            }
+
+            const qty = parseFloat(item.quantity) || 0;
+            const price = item.purchase_price ? parseFloat(item.purchase_price) : 0;
+            const value = qty * price;
+
+            parts[partId].totalQty += qty;
+            parts[partId].totalValue += value;
+
+            parts[partId].batches.push({
+                id: item.pk,
+                batch: item.batch || 'N/A',
+                location: item.location_detail ? item.location_detail.name : 'Unknown',
+                qty,
+                price,
+                value
+            });
+        });
+
+        // Render HTML
+        let html = '';
+        Object.values(parts).forEach(part => {
+            // Product Row
+            const rowId = `part-${part.name.replace(/\s+/g, '-')}`;
+            html += `
+                <tr class="product-row clickable" onclick="toggleBatchRow(this)">
+                    <td><span class="menu-arrow">▶</span> ${part.name}</td>
+                    <td>${part.totalQty}</td>
+                    <td>-</td>
+                    <td>€${part.totalValue.toFixed(2)}</td>
+                </tr>
+             `;
+
+            // Batches (Hidden by default, will use CSS logic or simple class toggle)
+            // For MVP, just list them below with a different indent
+            part.batches.forEach(batch => {
+                html += `
+                    <tr class="batch-row hidden">
+                        <td style="padding-left: 2rem;">
+                            <span style="opacity:0.7">Batch: ${batch.batch} (Loc: ${batch.location})</span>
+                        </td>
+                        <td>${batch.qty}</td>
+                        <td>€${batch.price.toFixed(2)}</td>
+                        <td>€${batch.value.toFixed(2)}</td>
+                    </tr>
+                 `;
+            });
+        });
+
+        tbody.innerHTML = html;
+
+        // Assign toggle handler globally if not exists
+        if (!window.toggleBatchRow) {
+            window.toggleBatchRow = (row) => {
+                row.classList.toggle('expanded');
+                let next = row.nextElementSibling;
+                while (next && next.classList.contains('batch-row')) {
+                    next.classList.toggle('hidden');
+                    next = next.nextElementSibling;
+                }
+            };
         }
     },
 

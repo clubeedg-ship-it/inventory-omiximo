@@ -159,15 +159,20 @@ const api = {
         return data.results || data;
     },
 
-    async createStock(partId, locationId, qty, price) {
+    async createStock(partId, locationId, qty, price, notes = '') {
+        const body = {
+            part: partId,
+            location: locationId,
+            quantity: qty,
+            purchase_price: price
+        };
+        // Add notes if provided (for storing source URL)
+        if (notes) {
+            body.notes = notes;
+        }
         return this.request('/stock/', {
             method: 'POST',
-            body: JSON.stringify({
-                part: partId,
-                location: locationId,
-                quantity: qty,
-                purchase_price: price
-            })
+            body: JSON.stringify(body)
         });
     },
 
@@ -369,8 +374,9 @@ const router = {
                 // Activate new view (triggers warp-in animation)
                 nextViewEl.classList.add('active');
 
-                // Update state
+                // Update state and persist
                 state.currentView = view;
+                localStorage.setItem('omiximo_view', view);
 
                 // Update nav
                 dom.navItems.forEach(item => {
@@ -389,7 +395,28 @@ const router = {
                 if (view === 'catalog') {
                     catalog.render();
                 }
+
+                // Render profitability engine when navigating to it
+                if (view === 'profit' && typeof profitEngine !== 'undefined') {
+                    profitEngine.render();
+                }
             }, 200); // Match warp-out animation duration
+        }
+    },
+
+    /**
+     * Restore saved view from localStorage
+     */
+    restoreSavedView() {
+        const savedView = localStorage.getItem('omiximo_view');
+        console.log('🔍 Checking saved view:', savedView, 'current:', state.currentView);
+        if (savedView && savedView !== 'wall' && savedView !== state.currentView) {
+            console.log('🔄 Restoring view to:', savedView);
+            // Use a longer delay to ensure DOM and async data are fully ready
+            setTimeout(() => {
+                console.log('🎯 Navigating to saved view:', savedView);
+                this.navigate(savedView);
+            }, 300);
         }
     }
 };
@@ -1002,14 +1029,19 @@ const handshake = {
         dom.inputQty.value = 1;
 
         // Configure form based on mode
+        const sourceUrlGroup = document.getElementById('inputSourceUrl')?.parentElement;
         if (this.mode === 'picking') {
-            // Hide price, populate source bins
+            // Hide price and source URL, populate source bins
             dom.inputPrice.parentElement.style.display = 'none';
+            if (sourceUrlGroup) sourceUrlGroup.style.display = 'none';
             this.populateSourceBins();
         } else {
-            // Show price, populate target bins
+            // Show price and source URL, populate target bins
             dom.inputPrice.parentElement.style.display = 'flex';
+            if (sourceUrlGroup) sourceUrlGroup.style.display = 'block';
             dom.inputPrice.value = '';
+            const sourceUrlInput = document.getElementById('inputSourceUrl');
+            if (sourceUrlInput) sourceUrlInput.value = '';
             this.populateBins();
         }
 
@@ -1112,7 +1144,8 @@ const handshake = {
     },
 
     /**
-     * Handle RECEIVING submission
+     * Handle RECEIVING submission with FIFO Auto-Rotation
+     * New stock goes to Bin A, pushing old Bin A stock to Bin B
      */
     async submitReceive() {
         const partId = state.selectedPart?.pk;
@@ -1126,7 +1159,52 @@ const handshake = {
         }
 
         try {
-            await api.createStock(partId, locationId, qty, price);
+            // Get the selected location details to determine which bin it is
+            const selectedLocation = [...state.locations.values()].find(loc => loc.pk === parseInt(locationId));
+            if (!selectedLocation) {
+                throw new Error('Invalid location');
+            }
+
+            const locName = selectedLocation.name;
+
+            // FIFO Auto-Rotation Logic
+            // If receiving to Bin A (e.g., A-1-3-A), check if there's existing stock
+            // If yes, move it to corresponding Bin B (A-1-3-B) before adding new stock
+            if (locName.endsWith('-A')) {
+                console.log(`🔄 FIFO rotation: Receiving to ${locName} (Bin A)`);
+
+                // Find corresponding Bin B
+                const binBName = locName.slice(0, -1) + 'B'; // Replace -A with -B
+                const binBLocation = [...state.locations.entries()].find(([name]) => name === binBName);
+
+                if (binBLocation) {
+                    const binBId = binBLocation[1].pk;
+
+                    // Check for existing stock in Bin A for this part
+                    const existingStockA = await api.getStockAtLocation(locationId);
+                    const partStockInA = existingStockA.filter(item => item.part === partId);
+
+                    if (partStockInA.length > 0) {
+                        console.log(`  📦 Found ${partStockInA.length} existing batch(es) in Bin A, moving to Bin B...`);
+
+                        // Move all existing Bin A stock to Bin B
+                        for (const stockItem of partStockInA) {
+                            await this.moveStock(stockItem.pk, binBId, stockItem.quantity);
+                            console.log(`  ✓ Moved ${stockItem.quantity} units (€${stockItem.purchase_price}) to ${binBName}`);
+                        }
+
+                        toast.show(`Rotated old batch to Bin B`, 'info');
+                    } else {
+                        console.log(`  ℹ️ No existing stock in Bin A, direct placement`);
+                    }
+                } else {
+                    console.warn(`  ⚠️ Bin B not found for rotation (${binBName})`);
+                }
+            }
+
+            // Create new stock at the selected location (now Bin A is clear if rotation happened)
+            const sourceUrl = document.getElementById('inputSourceUrl')?.value?.trim() || '';
+            await api.createStock(partId, locationId, qty, price, sourceUrl ? `Source: ${sourceUrl}` : '');
 
             // Show success
             dom.handshakeForm.style.display = 'none';
@@ -1140,12 +1218,46 @@ const handshake = {
             }, 800);
 
         } catch (e) {
+            console.error('Receiving error:', e);
             toast.show(`Failed: ${e.message}`, true);
         }
     },
 
     /**
+     * Move stock from one location to another
+     * @param {number} stockItemId - Stock item ID to move
+     * @param {number} newLocationId - Destination location ID
+     * @param {number} quantity - Quantity to transfer
+     */
+    async moveStock(stockItemId, newLocationId, quantity) {
+        // InvenTree stock transfer endpoint: POST /api/stock/transfer/
+        const response = await fetch(`${CONFIG.API_BASE}/stock/transfer/`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Token ${CONFIG.API_TOKEN}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                items: [{
+                    pk: stockItemId,
+                    quantity: quantity
+                }],
+                location: newLocationId,
+                notes: 'FIFO Auto-Rotation: Old → Bin B'
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(`Transfer failed: ${error}`);
+        }
+
+        return await response.json();
+    },
+
+    /**
      * Handle PICKING submission with FIFO logic
+     * Consumes from Bin B (oldest) first, then Bin A (newest)
      */
     async submitPick() {
         const qty = parseInt(dom.inputQty.value);
@@ -1165,22 +1277,50 @@ const handshake = {
                 const item = this.stockItems.find(s => s.pk === parseInt(selectedStockId));
                 if (item && item.quantity >= qty) {
                     await api.removeStock(item.pk, qty);
-                    consumed.push({ bin: item.location_detail?.name, qty });
+                    consumed.push({
+                        bin: item.location_detail?.name,
+                        qty,
+                        price: item.purchase_price
+                    });
                     remaining = 0;
                 } else {
                     toast.show('Insufficient stock in selected bin', true);
                     return;
                 }
             } else {
-                // FIFO Auto-pick: consume from oldest first (Bin B priority)
-                for (const item of this.stockItems) {
+                // FIFO Auto-pick: Explicit Bin B priority (oldest first)
+                // Sort stock items: Bin B (-B suffix) before Bin A (-A suffix)
+                const sortedStock = [...this.stockItems].sort((a, b) => {
+                    const nameA = a.location_detail?.name || '';
+                    const nameB = b.location_detail?.name || '';
+
+                    // Bin B (-B) gets priority (comes first)
+                    const isBinB_A = nameA.endsWith('-B');
+                    const isBinB_B = nameB.endsWith('-B');
+
+                    if (isBinB_A && !isBinB_B) return -1;  // A is Bin B, comes first
+                    if (!isBinB_A && isBinB_B) return 1;   // B is Bin B, B comes first
+
+                    // Both same type (both -A or both -B), sort by created date (oldest first)
+                    return new Date(a.stocktake_date || 0) - new Date(b.stocktake_date || 0);
+                });
+
+                console.log('🔄 FIFO Picking Order:', sortedStock.map(s => `${s.location_detail?.name} (${s.quantity} @ €${s.purchase_price})`));
+
+                for (const item of sortedStock) {
                     if (remaining <= 0) break;
                     if (item.quantity <= 0) continue;
 
                     const toConsume = Math.min(remaining, item.quantity);
                     await api.removeStock(item.pk, toConsume);
-                    consumed.push({ bin: item.location_detail?.name, qty: toConsume });
+                    consumed.push({
+                        bin: item.location_detail?.name,
+                        qty: toConsume,
+                        price: item.purchase_price
+                    });
                     remaining -= toConsume;
+
+                    console.log(`  ✓ Consumed ${toConsume} from ${item.location_detail?.name} @ €${item.purchase_price}`);
                 }
             }
 
@@ -1527,13 +1667,30 @@ const batchEditor = {
         document.getElementById('batchEditQty').value = stockItem.quantity || 0;
         document.getElementById('batchEditPrice').value = stockItem.purchase_price || 0;
 
-        // Show location info
-        const locName = stockItem.location_detail?.name || 'Unknown';
-        document.getElementById('batchEditLocation').textContent = locName;
+        // Show current location in readonly info
+        const currentLocName = stockItem.location_detail?.name || 'Unknown';
+        document.getElementById('batchEditLocation').textContent = currentLocName;
 
         // Show part name
         const partName = stockItem.part_detail?.name || 'Unknown Part';
         document.getElementById('batchEditPartName').textContent = partName;
+
+        // Populate location dropdown
+        const locSelect = document.getElementById('batchEditLocationSelect');
+        locSelect.innerHTML = '<option value="">Select new location...</option>';
+
+        // Add all locations (only Bin A/B bins for FIFO system)
+        for (const [name, loc] of state.locations.entries()) {
+            if (name.match(/^[AB]-\d-\d-[AB]$/)) {  // Only show bins (e.g. A-1-1-A, B-2-3-B)
+                const option = new Option(name, loc.pk);
+                // Mark current location
+                if (loc.pk === stockItem.location) {
+                    option.text += ' (current)';
+                    option.disabled = true;
+                }
+                locSelect.appendChild(option);
+            }
+        }
 
         modal.classList.add('active');
         document.getElementById('batchEditQty').focus();
@@ -1551,9 +1708,31 @@ const batchEditor = {
 
         const qty = parseFloat(document.getElementById('batchEditQty').value);
         const price = parseFloat(document.getElementById('batchEditPrice').value);
+        const newLocationId = document.getElementById('batchEditLocationSelect').value;
+
+        // Manual validation (since form has novalidate)
+        if (isNaN(qty) || qty < 0) {
+            toast.show('Please enter a valid quantity', 'error');
+            return;
+        }
+        if (isNaN(price) || price < 0) {
+            toast.show('Please enter a valid price', 'error');
+            return;
+        }
 
         try {
-            // Update stock item via API
+            // Check if location changed
+            const locationChanged = newLocationId && parseInt(newLocationId) !== this.currentStock.location;
+
+            if (locationChanged) {
+                console.log(`📦 Location change detected: moving stock to new location`);
+
+                // Transfer stock to new location
+                await handshake.moveStock(this.currentStock.pk, parseInt(newLocationId), qty);
+                toast.show('Batch moved to new location', 'success');
+            }
+
+            // Update quantity and price (even if only those changed)
             await api.request(`/stock/${this.currentStock.pk}/`, {
                 method: 'PATCH',
                 body: JSON.stringify({
@@ -1565,13 +1744,20 @@ const batchEditor = {
             toast.show('Batch updated successfully', 'success');
             this.hide();
 
-            // Refresh the catalog to show updated data
+            // Refresh the catalog and wall to show updated data
             await loadParts();
             catalog.render();
 
+            // Reload batches for the currently expanded part if in catalog
+            if (state.expandedPart) {
+                await catalog.loadBatches(state.expandedPart);
+            }
+
+            wall.loadLiveData();
+
         } catch (e) {
-            toast.show('Failed to update batch', 'error');
             console.error('Batch update error:', e);
+            toast.show('Failed to update batch', 'error');
         }
     }
 };
@@ -1847,23 +2033,21 @@ const partManager = {
                 const result = await api.createPart(data);
                 partPk = result.pk;
 
-                // Auto-FIFO: Determine target bin (B first, then A)
-                // First batch goes to B, subsequent would go to A
-                const cellName = stockData.location; // e.g., "A-1-3"
-                const binB = state.locations.get(`${cellName}-B`);
-                const binA = state.locations.get(`${cellName}-A`);
+                // stockData.location is already a bin PK from the dropdown
+                // Just create stock at the selected location directly
+                if (stockData.location && stockData.quantity > 0) {
+                    await api.createStock(partPk, stockData.location, stockData.quantity, stockData.purchasePrice);
 
-                // Always start with Bin B for first stock
-                const targetBin = binB || binA;
-                if (targetBin) {
-                    await api.createStock(partPk, targetBin.pk, stockData.quantity, stockData.purchasePrice);
-                    toast.show(`Created: ${data.name} → ${cellName}-B`);
-                } else {
-                    // Fallback: use the cell directly if no A/B bins
-                    const cell = state.locations.get(cellName);
-                    if (cell) {
-                        await api.createStock(partPk, cell.pk, stockData.quantity, stockData.purchasePrice);
+                    // Find bin name for toast message
+                    let binName = 'selected bin';
+                    for (const [name, loc] of state.locations) {
+                        if (loc.pk == stockData.location) {
+                            binName = name;
+                            break;
+                        }
                     }
+                    toast.show(`Created: ${data.name} → ${binName} (${stockData.quantity}x)`);
+                } else {
                     toast.show(`Created: ${data.name}`);
                 }
             } else {
@@ -1900,8 +2084,16 @@ const partManager = {
         if (!this.currentPart) return;
 
         try {
+            // InvenTree requires parts to be inactive before deletion
+            // First, mark the part as inactive
+            await api.request(`/part/${this.currentPart.pk}/`, {
+                method: 'PATCH',
+                body: JSON.stringify({ active: false })
+            });
+
+            // Now delete the inactive part
             await api.deletePart(this.currentPart.pk);
-            toast.show(`Deleted: ${this.currentPart.name}`);
+            toast.show(`Deleted: ${this.currentPart.name}`, 'success');
 
             this.hideDelete();
             this.currentPart = null;
@@ -1911,7 +2103,8 @@ const partManager = {
             catalog.render();
 
         } catch (e) {
-            toast.show(`Delete failed: ${e.message}`, true);
+            console.error('Delete error:', e);
+            toast.show(`Delete failed: ${e.message}`, 'error');
         }
     }
 };
@@ -2306,6 +2499,9 @@ const auth = {
 
         // Check low stock
         await alerts.checkLowStock();
+
+        // Restore saved view (after all modules are initialized)
+        router.restoreSavedView();
 
         // Periodic refresh
         setInterval(async () => {
