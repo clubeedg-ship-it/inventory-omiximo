@@ -344,8 +344,9 @@ const profitEngine = {
         recordSale.loadTransactions();
 
         // Calculate initial inventory value (async)
-        // Wait a bit for token to be available if needed, or call it safely
-        setTimeout(() => this.calculateInventoryValue(), 1000);
+        // Calculate initial inventory value (async)
+        // No timeout needed - we check CONFIG.API_TOKEN now
+        this.calculateInventoryValue();
 
         // Setup Event Listeners
         this.setupEventListeners();
@@ -390,6 +391,15 @@ const profitEngine = {
                 }
             });
         }
+
+        // Refresh Button
+        const refreshBtn = document.getElementById('refreshInventoryBtn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent card click
+                this.refreshInventoryValue();
+            });
+        }
     },
 
     navigateToSubView(viewName) {
@@ -424,39 +434,56 @@ const profitEngine = {
         }
     },
 
+    async refreshInventoryValue() {
+        // Show loading state if we have a refresh button
+        const btn = document.getElementById('refreshInventoryBtn');
+        if (btn) btn.classList.add('spin');
+
+        await this.calculateInventoryValue();
+
+        if (btn) setTimeout(() => btn.classList.remove('spin'), 500);
+    },
+
     async calculateInventoryValue() {
         try {
-            if (!state.token) return;
+            // Use CONFIG.API_TOKEN from app.js instead of undefined state.token
+            if (!CONFIG.API_TOKEN) {
+                console.warn('⚠️ calculateInventoryValue: No auth token available');
+                return;
+            }
 
-            // Fetch all stock items
-            const response = await fetch(`${env.API_URL}/stock/`, {
-                headers: { 'Authorization': `Token ${state.token}` }
-            });
-
-            if (!response.ok) throw new Error('Failed to fetch stock');
-
-            const stockItems = await response.json();
+            // Use api.request for consistency (handles headers and auth)
+            // Need to handle strict structure of InvenTree API
+            // fetch all stock items (might need pagination loop for large inventories, but start with limit=1000)
+            // InvenTree list endpoint usually returns array or results object
+            const stockItems = await api.request('/stock/?limit=1000');
+            const items = stockItems.results || stockItems;
 
             let totalVal = 0;
-            const productBreakdown = {}; // We will implement breakdown logic later/here if easy
 
-            stockItems.forEach(item => {
+            // Calculate value based on actual purchase_price
+            items.forEach(item => {
                 const qty = parseFloat(item.quantity) || 0;
-                // Use purchase_price if available, otherwise 0 for now as per constraints to use EXACT batch cost
-                const price = item.purchase_price ? parseFloat(item.purchase_price) : 0;
+                const price = parseFloat(item.purchase_price) || 0;
                 totalVal += qty * price;
             });
 
             profitState.inventoryValue = totalVal;
+            profitState.stockItems = items; // Cache for breakdown view
 
-            // Update UI if we are in main view
+            // Update UI
             this.renderSummary();
 
-            // Also store for breakdown rendering if needed, or re-fetch in renderInventoryBreakdown
-            profitState.stockItems = stockItems; // Cache it
+            // If we are currently in the inventory sub-view, re-render the table
+            if (profitState.currentSubView === 'inventory') {
+                this.renderInventoryBreakdown();
+            }
+
+            console.log(`💰 Inventory Value Updated: €${totalVal.toFixed(2)} (${items.length} batches)`);
 
         } catch (err) {
             console.error('Inventory Value Calc Error:', err);
+            if (window.toast) toast.show('Failed to update inventory value', true);
         }
     },
 
