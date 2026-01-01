@@ -543,7 +543,7 @@ const profitEngine = {
                         backgroundColor: 'rgba(0, 220, 180, 0.1)',
                         borderWidth: 2,
                         tension: 0.4,
-                        fill: true,
+                        fill: 'origin', // Explicitly fill to the X-axis (0)
                         pointBackgroundColor: '#005066',
                         pointBorderColor: '#fff',
                         pointRadius: 4
@@ -561,7 +561,8 @@ const profitEngine = {
                             grid: { display: false }
                         },
                         y: {
-                            beginAtZero: true,
+                            beginAtZero: true, // Ensure we have a ground at 0
+                            suggestedMin: 0,   // Suggest 0 as minimum even if data is higher
                             ticks: {
                                 color: textColor,
                                 callback: value => '€' + value
