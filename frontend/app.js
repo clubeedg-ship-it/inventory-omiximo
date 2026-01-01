@@ -351,6 +351,9 @@ const router = {
                 this.navigate(view);
             });
         });
+
+        // Instant restore on load
+        this.restoreSavedView(true);
     },
 
     navigate(view) {
@@ -406,17 +409,46 @@ const router = {
 
     /**
      * Restore saved view from localStorage
+     * @param {boolean} instant - If true, switch immediately without animation
      */
-    restoreSavedView() {
+    restoreSavedView(instant = false) {
         const savedView = localStorage.getItem('omiximo_view');
-        console.log('🔍 Checking saved view:', savedView, 'current:', state.currentView);
-        if (savedView && savedView !== 'wall' && savedView !== state.currentView) {
-            console.log('🔄 Restoring view to:', savedView);
-            // Use a longer delay to ensure DOM and async data are fully ready
-            setTimeout(() => {
-                console.log('🎯 Navigating to saved view:', savedView);
-                this.navigate(savedView);
-            }, 300);
+        // Default to 'wall' if nothing saved, but don't force it if we are already there
+        const targetView = savedView || 'wall';
+
+        console.log('🔍 Checking saved view:', targetView, 'current:', state.currentView, 'instant:', instant);
+
+        if (targetView !== state.currentView) {
+            console.log('🔄 Restoring view to:', targetView);
+
+            if (instant) {
+                // Immediate switch (no animation)
+                dom.views.forEach(v => {
+                    v.classList.remove('active', 'warping-out', 'hidden');
+                    if (v.id === `view-${targetView}`) {
+                        v.classList.add('active');
+                    } else {
+                        v.classList.add('hidden');
+                    }
+                });
+
+                // Update nav state
+                dom.navItems.forEach(item => {
+                    item.classList.toggle('active', item.dataset.view === targetView);
+                });
+
+                // Update title
+                const titles = { wall: 'The Wall', catalog: 'Parts Catalog', profit: 'Profitability' };
+                dom.viewTitle.textContent = titles[targetView] || targetView;
+
+                state.currentView = targetView;
+
+            } else {
+                // Animated switch
+                setTimeout(() => {
+                    this.navigate(targetView);
+                }, 300);
+            }
         }
     }
 };
@@ -2500,8 +2532,7 @@ const auth = {
         // Check low stock
         await alerts.checkLowStock();
 
-        // Restore saved view (after all modules are initialized)
-        router.restoreSavedView();
+        // View restoration is now handled in router.init()
 
         // Periodic refresh
         setInterval(async () => {
