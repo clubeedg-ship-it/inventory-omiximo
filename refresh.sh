@@ -22,14 +22,14 @@ cd "$(dirname "$0")"
 # Frontend only (fast refresh)
 if [ "$1" == "--frontend" ] || [ "$1" == "-f" ]; then
     echo -e "${YELLOW}→ Rebuilding frontend only...${NC}"
-    docker-compose up -d --build inventree-frontend
+    docker compose up -d --build inventree-frontend
     echo -e "${GREEN}✓ Frontend refreshed!${NC}"
     exit 0
 fi
 
 # Full refresh (all containers)
 echo -e "${YELLOW}→ Rebuilding all containers (preserving data volumes)...${NC}"
-docker-compose up -d --build
+docker compose up -d --build
 
 echo ""
 echo -e "${GREEN}✓ All containers refreshed!${NC}"
@@ -39,4 +39,4 @@ echo -e "${BLUE}Access the app at: http://localhost:1441${NC}"
 echo ""
 
 # Show container status
-docker-compose ps
+docker compose ps
