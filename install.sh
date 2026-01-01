@@ -48,6 +48,7 @@ fi
 if docker compose version &> /dev/null; then
     COMPOSE_CMD="docker compose"
 elif command -v docker-compose &> /dev/null; then
+    # Fallback but prioritize v2 if possible
     COMPOSE_CMD="docker-compose"
 else
     echo -e "${RED}✗ Docker Compose not found.${NC}"
