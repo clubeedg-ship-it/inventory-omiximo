@@ -31,7 +31,14 @@ const state = {
     isConnected: false,
     scanBuffer: '',
     scanTimer: null,
-    selectedPart: null
+    selectedPart: null,
+    // Pagination State
+    catalog: {
+        results: [],
+        next: null,
+        count: 0,
+        loading: false
+    }
 };
 
 // =============================================================================
@@ -143,10 +150,26 @@ const api = {
         return data.results || data;
     },
 
-    async getParts() {
-        const query = buildTenantQuery({ limit: 500 });
+    async getParts(options = {}) {
+        const defaultParams = { limit: 50, offset: 0 };
+        const params = { ...defaultParams, ...options };
+        const query = buildTenantQuery(params);
         const data = await this.request(`/part/${query}`);
-        return data.results || data;
+        // If it's a paginated response, it has 'results'. If valid list, it's array.
+        // We return the raw data if it has 'results' (to get 'count' & 'next'),
+        // OR the array if it's a direct array (rare in InvenTree if limit is used).
+        // BUT current app.js expects an ARRAY.
+        // We need to support both legacy array return AND new paginated return.
+        // For compability during refactor, if 'results' exists, return it properties attached to the array?
+        // No, let's return the full object if request asks for it, or just results.
+        // Actually, to make 'catalog' pagination work, we MUST return 'next' and 'count'.
+        // So we should return the full response object, and let the caller handle .results
+        // However, existing code might break if we change return type.
+        // Checking usages: 'loadParts' uses .forEach on result.
+        // We are removing 'loadParts', so we can change the return signature!
+        // BUT 'scanner.handlePart' uses 'api.searchPart', not 'getParts'.
+        // Let's standardise: return the full DRF object { count, next, previous, results: [] }
+        return data;
     },
 
     async getStockAtLocation(locId) {
@@ -395,8 +418,8 @@ const router = {
                 dom.viewTitle.textContent = titles[view] || view;
 
                 // Refresh catalog when navigating to it
-                if (view === 'catalog') {
-                    catalog.render();
+                if (view === 'catalog' && state.catalog.results.length === 0) {
+                    catalog.reload();
                 }
 
                 // Render profitability engine when navigating to it
@@ -1388,13 +1411,13 @@ const catalog = {
     filterCategory: '',
 
     init() {
-        // Search input
+        // Search input (Server-side Debounce)
         if (dom.catalogSearch) {
             dom.catalogSearch.addEventListener('input', (e) => {
                 clearTimeout(this.searchDebounce);
                 this.searchDebounce = setTimeout(() => {
-                    this.render();
-                }, 200);
+                    this.reload();
+                }, 400); // 400ms debounce
             });
         }
 
@@ -1403,7 +1426,7 @@ const catalog = {
         if (categoryFilter) {
             categoryFilter.addEventListener('change', (e) => {
                 this.filterCategory = e.target.value;
-                this.render();
+                this.reload();
             });
         }
 
@@ -1441,37 +1464,106 @@ const catalog = {
         });
     },
 
+    /**
+     * Clear and reload catalog
+     */
+    async reload() {
+        state.catalog.results = [];
+        state.catalog.next = null;
+        state.catalog.count = 0;
+        await this.loadNextPage();
+    },
+
+    /**
+     * Load next page of parts
+     */
+    async loadNextPage() {
+        if (state.catalog.loading) return;
+        state.catalog.loading = true;
+
+        const grid = document.getElementById('catalogGrid');
+
+        // Show loading indicator if appending
+        let loadingIndicator = null;
+        if (state.catalog.results.length > 0 && grid) {
+            loadingIndicator = document.createElement('div');
+            loadingIndicator.className = 'catalog-loading-more';
+            loadingIndicator.innerHTML = '<div class="spinner"></div> Loading more...';
+            grid.appendChild(loadingIndicator);
+        } else if (grid) {
+            grid.innerHTML = '<div class="catalog-loading">Loading parts...</div>';
+        }
+
+        try {
+            const params = {
+                limit: 24, // Optimized for 3/4 column grid
+                offset: state.catalog.results.length
+            };
+
+            // Search query
+            const search = dom.catalogSearch?.value?.trim();
+            if (search) params.search = search;
+
+            // Category filter
+            if (this.filterCategory) params.category = this.filterCategory;
+
+            const data = await api.getParts(params);
+
+            // Handle response (DRF paginated object)
+            const newParts = data.results || [];
+
+            // Update state
+            state.catalog.count = data.count || 0;
+            state.catalog.next = data.next;
+            state.catalog.results = [...state.catalog.results, ...newParts];
+
+            // Update parts cache for other lookups
+            newParts.forEach(p => state.parts.set(p.pk, p));
+
+            this.render();
+
+        } catch (e) {
+            console.error('Failed to load parts:', e);
+            if (grid && state.catalog.results.length === 0) {
+                grid.innerHTML = '<div class="catalog-error">Failed to load catalog</div>';
+            }
+        } finally {
+            state.catalog.loading = false;
+            // Remove loading indicator
+            if (loadingIndicator) loadingIndicator.remove();
+        }
+    },
+
     render() {
         if (!dom.catalogGrid) return;
 
-        const searchQuery = (dom.catalogSearch?.value || '').toLowerCase().trim();
-        let parts = Array.from(state.parts.values());
-
-        // Filter by search
-        if (searchQuery) {
-            parts = parts.filter(p =>
-                (p.name?.toLowerCase().includes(searchQuery)) ||
-                (p.IPN?.toLowerCase().includes(searchQuery)) ||
-                (p.description?.toLowerCase().includes(searchQuery))
-            );
-        }
-
-        // Filter by category
-        if (this.filterCategory) {
-            parts = parts.filter(p => p.category == this.filterCategory);
-        }
+        const parts = state.catalog.results;
+        const searchQuery = dom.catalogSearch?.value?.trim();
 
         if (parts.length === 0) {
             dom.catalogGrid.innerHTML = `
                 <div class="catalog-empty">
                     <span>${searchQuery ? '🔍' : '📦'}</span>
-                    <p>${searchQuery ? `No parts matching "${searchQuery}"` : 'No parts in inventory. Click + to add one.'}</p>
+                    <p>${searchQuery ? `No parts found matching "${searchQuery}"` : 'No parts found.'}</p>
                 </div>
             `;
             return;
         }
 
         dom.catalogGrid.innerHTML = parts.map(p => this.createCard(p)).join('');
+
+        // Append "Load More" button if there are more results
+        if (state.catalog.next) {
+            const loadMoreBtn = document.createElement('button');
+            loadMoreBtn.className = 'btn-load-more';
+            loadMoreBtn.innerHTML = 'Load More';
+            loadMoreBtn.onclick = () => this.loadNextPage();
+
+            const btnContainer = document.createElement('div');
+            btnContainer.className = 'load-more-container';
+            btnContainer.appendChild(loadMoreBtn);
+            dom.catalogGrid.appendChild(btnContainer);
+        }
 
         // Attach card event listeners
         this.attachCardListeners();
@@ -1777,8 +1869,8 @@ const batchEditor = {
             this.hide();
 
             // Refresh the catalog and wall to show updated data
-            await loadParts();
-            catalog.render();
+            // Refresh the catalog and wall to show updated data
+            await catalog.reload();
 
             // Reload batches for the currently expanded part if in catalog
             if (state.expandedPart) {
@@ -2094,8 +2186,8 @@ const partManager = {
             this.hide();
 
             // Refresh parts list
-            await loadParts();
-            catalog.render();
+            // Refresh parts list
+            await catalog.reload();
 
         } catch (e) {
             toast.show(`Error: ${e.message}`, true);
@@ -2131,8 +2223,8 @@ const partManager = {
             this.currentPart = null;
 
             // Refresh parts list
-            await loadParts();
-            catalog.render();
+            // Refresh parts list
+            await catalog.reload();
 
         } catch (e) {
             console.error('Delete error:', e);
@@ -2245,26 +2337,37 @@ const alerts = {
     async checkLowStock() {
         this.lowStockItems = [];
 
-        for (const [pk, part] of state.parts) {
-            const minStock = part.minimum_stock || 0;
-            if (minStock <= 0) continue; // Skip parts without minimum
+        try {
+            // Optimized: Fetch all parts that track stock and compare with minimum
+            // Since we can't easily filter "low stock" on backend without custom filter,
+            // we fetch a lightweight list of parts (e.g., limit 1000) and check locally.
+            // This is 1 request vs N requests.
+            const response = await api.getParts({ limit: 2000 }); // Reasonable limit for now
+            const parts = response.results || [];
 
-            try {
-                const { available } = await api.getAvailableStock(pk);
+            parts.forEach(part => {
+                const minStock = parseFloat(part.minimum_stock) || 0;
+                if (minStock <= 0) return;
 
-                if (available < minStock) {
+                const inStock = parseFloat(part.in_stock) || 0;
+
+                // Also update cache while we are here
+                state.parts.set(part.pk, part);
+
+                if (inStock < minStock) {
                     this.lowStockItems.push({
-                        pk,
+                        pk: part.pk,
                         name: part.name,
-                        sku: part.IPN || `PK-${pk}`,
-                        available,
+                        sku: part.IPN || `PK-${part.pk}`,
+                        available: inStock,
                         minimum: minStock,
-                        shortage: minStock - available
+                        shortage: minStock - inStock
                     });
                 }
-            } catch (e) {
-                // Ignore individual part errors
-            }
+            });
+
+        } catch (e) {
+            console.error('Failed to check low stock:', e);
         }
 
         this.alertCount = this.lowStockItems.length;
@@ -2510,13 +2613,19 @@ const auth = {
         // Load data
         await checkConnection();
         await loadLocations();
-        await loadParts();
+        // REMOVED: await loadParts(); // Non-blocking boot
+
 
         // Load live wall data
         await wall.loadLiveData();
 
         // Render catalog
-        catalog.render();
+        if (document.getElementById('view-catalog').classList.contains('active')) {
+            catalog.reload();
+        } else {
+            // Preload first page silently? Or wait until user clicks?
+            // Let's lazy load.
+        }
 
         // Initialize Profit Engine (after parts are loaded)
         if (typeof profitEngine !== 'undefined') {
@@ -2537,7 +2646,7 @@ const auth = {
         // Periodic refresh
         setInterval(async () => {
             await checkConnection();
-            await loadParts();
+            // REMOVED: await loadParts(); // Avoiding DDoS
             await wall.loadLiveData();
             await alerts.checkLowStock();
         }, CONFIG.REFRESH_INTERVAL);
