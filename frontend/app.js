@@ -2627,19 +2627,19 @@ const auth = {
             // Let's lazy load.
         }
 
-        // Initialize Profit Engine (after parts are loaded)
-        if (typeof profitEngine !== 'undefined') {
-            profitEngine.init();
-        }
-
         // Initialize Tenant Module
         if (typeof tenant !== 'undefined') {
             await tenant.checkSuperAdmin();
             tenant.init();
         }
 
-        // Check low stock
+        // Check low stock (This loads parts into state.parts)
         await alerts.checkLowStock();
+
+        // Initialize Profit Engine (AFTER parts are loaded)
+        if (typeof profitEngine !== 'undefined') {
+            profitEngine.init();
+        }
 
         // View restoration is now handled in router.init()
 
