@@ -672,7 +672,9 @@ const profitEngine = {
         profitState.stockItems.forEach(item => {
             if (!item.part) return;
             const partId = item.part;
-            const partName = item.part_detail ? item.part_detail.name : `Part #${partId}`;
+            // FIX: Lookup part name from global state because API stock list doesn't include nested part_detail
+            const partDef = (typeof state !== 'undefined' && state.parts) ? state.parts.get(partId) : null;
+            const partName = partDef ? partDef.name : (item.part_detail ? item.part_detail.name : `Unknown Part (ID: ${partId})`);
 
             if (!parts[partId]) {
                 parts[partId] = {
