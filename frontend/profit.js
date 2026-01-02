@@ -658,92 +658,112 @@ const profitEngine = {
      * Render drill-down table of inventory
      */
     renderInventoryBreakdown() {
-        const tbody = document.getElementById('inventoryBreakdownBody');
-        if (!tbody) return;
+        try {
+            const tbody = document.getElementById('inventoryBreakdownBody');
+            if (!tbody) return;
 
-        if (!profitState.stockItems || profitState.stockItems.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 2rem;">No stock data available</td></tr>';
-            return;
-        }
-
-        // Group by Part
-        const parts = {};
-
-        profitState.stockItems.forEach(item => {
-            if (!item.part) return;
-            const partId = item.part;
-            // FIX: Lookup part name from global state because API stock list doesn't include nested part_detail
-            const partDef = (typeof state !== 'undefined' && state.parts) ? state.parts.get(partId) : null;
-            const partName = partDef ? partDef.name : (item.part_detail ? item.part_detail.name : `Unknown Part (ID: ${partId})`);
-
-            if (!parts[partId]) {
-                parts[partId] = {
-                    name: partName,
-                    totalQty: 0,
-                    totalValue: 0,
-                    batches: []
-                };
+            if (!profitState.stockItems || profitState.stockItems.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 2rem;">No stock data available</td></tr>';
+                return;
             }
 
-            const qty = parseFloat(item.quantity) || 0;
-            const price = item.purchase_price ? parseFloat(item.purchase_price) : 0;
-            const value = qty * price;
+            console.time('renderInventory');
+            // Group by Part
+            const parts = {};
+            let partCount = 0;
+            const MAX_PARTS_TO_RENDER = 500; // Safety limit to prevent DOM freeze
 
-            parts[partId].totalQty += qty;
-            parts[partId].totalValue += value;
+            profitState.stockItems.forEach(item => {
+                if (!item.part) return;
+                const partId = item.part;
 
-            parts[partId].batches.push({
-                id: item.pk,
-                batch: item.batch || 'N/A',
-                location: item.location_detail ? item.location_detail.name : 'Unknown',
-                qty,
-                price,
-                value
+                if (!parts[partId]) {
+                    // Check limit
+                    if (partCount >= MAX_PARTS_TO_RENDER) return;
+
+                    // FIX: Lookup part name from global state
+                    const partDef = (typeof state !== 'undefined' && state.parts) ? state.parts.get(partId) : null;
+                    const partName = partDef ? partDef.name : (item.part_detail ? item.part_detail.name : `Unknown Part (ID: ${partId})`);
+
+                    parts[partId] = {
+                        name: partName,
+                        totalQty: 0,
+                        totalValue: 0,
+                        batches: []
+                    };
+                    partCount++;
+                }
+
+                // If part was skipped due to limit, don't accumulate
+                if (!parts[partId]) return;
+
+                const qty = parseFloat(item.quantity) || 0;
+                const price = item.purchase_price ? parseFloat(item.purchase_price) : 0;
+                const value = qty * price;
+
+                parts[partId].totalQty += qty;
+                parts[partId].totalValue += value;
+
+                parts[partId].batches.push({
+                    id: item.pk,
+                    batch: item.batch || 'N/A',
+                    location: item.location_detail ? item.location_detail.name : 'Unknown', // This relies on API, might be simplified
+                    qty,
+                    price,
+                    value
+                });
             });
-        });
 
-        // Render HTML
-        let html = '';
-        Object.values(parts).forEach(part => {
-            // Product Row
-            const rowId = `part-${part.name.replace(/\s+/g, '-')}`;
-            html += `
-                <tr class="product-row clickable" onclick="toggleBatchRow(this)">
-                    <td><span class="menu-arrow">▶</span> ${part.name}</td>
-                    <td>${part.totalQty}</td>
-                    <td>-</td>
-                    <td>€${part.totalValue.toFixed(2)}</td>
-                </tr>
-             `;
-
-            // Batches (Hidden by default, will use CSS logic or simple class toggle)
-            // For MVP, just list them below with a different indent
-            part.batches.forEach(batch => {
+            // Render HTML
+            let html = '';
+            Object.values(parts).forEach(part => {
+                // Product Row
                 html += `
-                    <tr class="batch-row hidden">
-                        <td style="padding-left: 2rem;">
-                            <span style="opacity:0.7">Batch: ${batch.batch} (Loc: ${batch.location})</span>
-                        </td>
-                        <td>${batch.qty}</td>
-                        <td>€${batch.price.toFixed(2)}</td>
-                        <td>€${batch.value.toFixed(2)}</td>
+                    <tr class="product-row clickable" onclick="toggleBatchRow(this)">
+                        <td><span class="menu-arrow">▶</span> ${part.name}</td>
+                        <td>${part.totalQty}</td>
+                        <td>-</td>
+                        <td>€${part.totalValue.toFixed(2)}</td>
                     </tr>
                  `;
+
+                // Batches
+                part.batches.forEach(batch => {
+                    html += `
+                        <tr class="batch-row hidden">
+                            <td style="padding-left: 2rem;">
+                                <span style="opacity:0.7">Batch: ${batch.batch} (Loc: ${batch.location})</span>
+                            </td>
+                            <td>${batch.qty}</td>
+                            <td>€${batch.price.toFixed(2)}</td>
+                            <td>€${batch.value.toFixed(2)}</td>
+                        </tr>
+                     `;
+                });
             });
-        });
 
-        tbody.innerHTML = html;
+            if (partCount >= MAX_PARTS_TO_RENDER) {
+                html += `<tr><td colspan="4" style="text-align:center; padding:1rem; opacity:0.6">... rendering limit reached (${MAX_PARTS_TO_RENDER} items) ...</td></tr>`;
+            }
 
-        // Assign toggle handler globally if not exists
-        if (!window.toggleBatchRow) {
-            window.toggleBatchRow = (row) => {
-                row.classList.toggle('expanded');
-                let next = row.nextElementSibling;
-                while (next && next.classList.contains('batch-row')) {
-                    next.classList.toggle('hidden');
-                    next = next.nextElementSibling;
-                }
-            };
+            tbody.innerHTML = html;
+            console.timeEnd('renderInventory');
+
+            // Assign toggle handler globally if not exists
+            if (!window.toggleBatchRow) {
+                window.toggleBatchRow = (row) => {
+                    row.classList.toggle('expanded');
+                    let next = row.nextElementSibling;
+                    while (next && next.classList.contains('batch-row')) {
+                        next.classList.toggle('hidden');
+                        next = next.nextElementSibling;
+                    }
+                };
+            }
+        } catch (e) {
+            console.error('CRITICAL: Render Inventory Failed', e);
+            const tbody = document.getElementById('inventoryBreakdownBody');
+            if (tbody) tbody.innerHTML = `<tr><td colspan="4" style="color:red; text-align:center;">Error rendering data: ${e.message}</td></tr>`;
         }
     },
 
