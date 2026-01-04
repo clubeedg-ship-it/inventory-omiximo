@@ -465,6 +465,7 @@ const profitEngine = {
             items.forEach(item => {
                 const qty = parseFloat(item.quantity) || 0;
                 const price = parseFloat(item.purchase_price) || 0;
+                // console.log(`Item ${item.pk}: ${qty} x ${price} = ${qty*price}`);
                 totalVal += qty * price;
             });
 
