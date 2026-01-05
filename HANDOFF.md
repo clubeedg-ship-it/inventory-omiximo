@@ -62,6 +62,11 @@
 *   **Purpose:** Multi-tenant support and label printing.
 *   **Current State:** Basic structure in `tenant.js` and `labels.js`.
 
+### 5. Recent Fixes (Jan 2026)
+*   **Inventory Valuation:** Fixed critical bug where inventory value was €0.00. Now uses client-side joining (`state.parts`) to robustly calculate value from stock batches.
+*   **Batch Editing:** Resolved issue where batch renders were empty; confirmed edits to quantity/price save correctly.
+*   **Browser Caching:** Implemented strictly versioned script tags (`v=5`) in `index.html` to prevent stale code issues.
+
 ---
 
 ## 🛠 Development State & Files
