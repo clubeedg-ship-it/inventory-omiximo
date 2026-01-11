@@ -15,9 +15,12 @@ const CONFIG = {
     REFRESH_INTERVAL: 30000,
     SCAN_TIMEOUT: 100,  // Reduced for faster scanner detection
     SCAN_AUDIO_ENABLED: true,  // User preference for beep
-    ZONES: ['A', 'B'],
-    COLUMNS: 4,
-    LEVELS: 7,
+    // Zone configuration now loaded dynamically from localStorage
+    // Default zones if none configured
+    DEFAULT_ZONES: [
+        { name: 'A', columns: 4, levels: 7, layoutRow: 0, layoutCol: 0, isActive: true },
+        { name: 'B', columns: 4, levels: 7, layoutRow: 0, layoutCol: 1, isActive: true }
+    ],
     POWER_SUPPLY_COLUMN: 'B-4'
 };
 
@@ -28,6 +31,7 @@ const state = {
     currentView: 'wall',
     locations: new Map(),
     parts: new Map(),
+    zones: [], // Dynamic zone configuration loaded from localStorage
     isConnected: false,
     scanBuffer: '',
     scanTimer: null,
@@ -413,7 +417,8 @@ const router = {
                 const titles = {
                     wall: 'The Wall',
                     catalog: 'Parts Catalog',
-                    profit: 'Profitability'
+                    profit: 'Profitability',
+                    history: 'Batch History'
                 };
                 dom.viewTitle.textContent = titles[view] || view;
 
@@ -425,6 +430,11 @@ const router = {
                 // Render profitability engine when navigating to it
                 if (view === 'profit' && typeof profitEngine !== 'undefined') {
                     profitEngine.render();
+                }
+
+                // Initialize history view when navigating to it
+                if (view === 'history' && typeof history !== 'undefined') {
+                    history.init();
                 }
             }, 200); // Match warp-out animation duration
         }
@@ -461,7 +471,7 @@ const router = {
                 });
 
                 // Update title
-                const titles = { wall: 'The Wall', catalog: 'Parts Catalog', profit: 'Profitability' };
+                const titles = { wall: 'The Wall', catalog: 'Parts Catalog', profit: 'Profitability', history: 'Batch History' };
                 dom.viewTitle.textContent = titles[targetView] || targetView;
 
                 state.currentView = targetView;
@@ -601,6 +611,270 @@ function updateClock() {
 }
 
 // =============================================================================
+// Zone Configuration Manager
+// =============================================================================
+const zoneConfig = {
+    STORAGE_KEY: 'omiximo_zones',
+    TEMPLATES: {
+        small: { columns: 3, levels: 5 },
+        standard: { columns: 4, levels: 7 },
+        large: { columns: 6, levels: 10 }
+    },
+
+    init() {
+        console.log('🚀 zoneConfig.init() called');
+        this.load();
+        console.log(`📊 After load, state.zones =`, state.zones);
+        if (state.zones.length === 0) {
+            // First time - use defaults
+            console.log('⚙️ No zones found, loading defaults:', CONFIG.DEFAULT_ZONES);
+            state.zones = CONFIG.DEFAULT_ZONES;
+            this.save();
+        }
+        console.log(`📦 Zone Config: Loaded ${state.zones.length} zones`, state.zones);
+    },
+
+    load() {
+        try {
+            const stored = localStorage.getItem(this.STORAGE_KEY);
+            if (stored) {
+                state.zones = JSON.parse(stored);
+            }
+        } catch (e) {
+            console.error('Failed to load zone config:', e);
+            state.zones = [];
+        }
+    },
+
+    save() {
+        try {
+            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state.zones));
+            console.log('💾 Zone config saved');
+        } catch (e) {
+            console.error('Failed to save zone config:', e);
+            notifications.show('Failed to save zone configuration', 'error');
+        }
+    },
+
+    add(zoneData) {
+        // Validate zone name is unique
+        if (state.zones.find(z => z.name === zoneData.name)) {
+            notifications.show(`Zone ${zoneData.name} already exists`, 'error');
+            return false;
+        }
+
+        state.zones.push({
+            name: zoneData.name,
+            columns: parseInt(zoneData.columns),
+            levels: parseInt(zoneData.levels),
+            layoutRow: parseInt(zoneData.layoutRow || 0),
+            layoutCol: parseInt(zoneData.layoutCol || state.zones.length),
+            isActive: true
+        });
+
+        this.save();
+        notifications.show(`Zone ${zoneData.name} created`, 'success');
+        return true;
+    },
+
+    update(zoneName, updates) {
+        const zone = state.zones.find(z => z.name === zoneName);
+        if (!zone) {
+            notifications.show(`Zone ${zoneName} not found`, 'error');
+            return false;
+        }
+
+        Object.assign(zone, updates);
+        this.save();
+        notifications.show(`Zone ${zoneName} updated`, 'success');
+        return true;
+    },
+
+    delete(zoneName) {
+        const index = state.zones.findIndex(z => z.name === zoneName);
+        if (index === -1) {
+            notifications.show(`Zone ${zoneName} not found`, 'error');
+            return false;
+        }
+
+        state.zones.splice(index, 1);
+        this.save();
+        notifications.show(`Zone ${zoneName} deleted`, 'success');
+        return true;
+    },
+
+    getZone(zoneName) {
+        return state.zones.find(z => z.name === zoneName);
+    },
+
+    getAllZones() {
+        return state.zones.filter(z => z.isActive);
+    },
+
+    applyTemplate(templateName, targetZone) {
+        const template = this.TEMPLATES[templateName];
+        if (!template) return false;
+
+        if (targetZone) {
+            this.update(targetZone.name, template);
+        }
+        return template;
+    }
+};
+
+// =============================================================================
+// Zone Manager - UI for Zone Configuration
+// =============================================================================
+const zoneManager = {
+    currentZone: null,
+
+    showAddModal() {
+        this.currentZone = null;
+        document.getElementById('zoneConfigTitle').textContent = 'Add New Zone';
+        document.getElementById('zoneConfigForm').reset();
+        document.getElementById('zoneConfigName').disabled = false;
+
+        // Calculate next available zone letter
+        const existingZones = state.zones.map(z => z.name).sort();
+        const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        let nextZone = 'C'; // Default if A and B exist
+
+        for (let i = 0; i < alphabet.length; i++) {
+            if (!existingZones.includes(alphabet[i])) {
+                nextZone = alphabet[i];
+                break;
+            }
+        }
+
+        // Pre-fill with suggested zone name
+        document.getElementById('zoneConfigName').value = nextZone;
+        document.getElementById('zoneConfigName').placeholder = nextZone;
+
+        // Update help text to show existing zones
+        const helpText = existingZones.length > 0
+            ? `Existing zones: ${existingZones.join(', ')}. Suggested: ${nextZone}`
+            : `Single letter (A-Z). Suggested: ${nextZone}`;
+
+        const helpEl = document.querySelector('#zoneConfigName + .form-help');
+        if (helpEl) helpEl.textContent = helpText;
+
+        document.getElementById('zoneConfigModal').classList.add('active');
+    },
+
+    configureZone(zoneName) {
+        const zone = zoneConfig.getZone(zoneName);
+        if (!zone) return;
+
+        this.currentZone = zone;
+        document.getElementById('zoneConfigTitle').textContent = `Configure Zone ${zoneName}`;
+        document.getElementById('zoneConfigName').value = zone.name;
+        document.getElementById('zoneConfigName').disabled = true; // Can't change zone name
+        document.getElementById('zoneConfigColumns').value = zone.columns;
+        document.getElementById('zoneConfigLevels').value = zone.levels;
+
+        // Reset help text for editing mode
+        const helpEl = document.querySelector('#zoneConfigName + .form-help');
+        if (helpEl) helpEl.textContent = 'Zone name cannot be changed';
+
+        document.getElementById('zoneConfigModal').classList.add('active');
+    },
+
+    closeConfigModal() {
+        document.getElementById('zoneConfigModal').classList.remove('active');
+        this.currentZone = null;
+    },
+
+    applyTemplate(templateName) {
+        const template = zoneConfig.TEMPLATES[templateName];
+        if (!template) return;
+
+        document.getElementById('zoneConfigColumns').value = template.columns;
+        document.getElementById('zoneConfigLevels').value = template.levels;
+    },
+
+    async submitConfig(e) {
+        e.preventDefault();
+
+        const name = document.getElementById('zoneConfigName').value.trim().toUpperCase();
+        const columns = parseInt(document.getElementById('zoneConfigColumns').value);
+        const levels = parseInt(document.getElementById('zoneConfigLevels').value);
+
+        // Validation
+        if (!/^[A-Z]$/.test(name)) {
+            notifications.show('Zone name must be a single letter (A-Z)', 'error');
+            return;
+        }
+
+        if (columns < 1 || columns > 10) {
+            notifications.show('Columns must be between 1 and 10', 'error');
+            return;
+        }
+
+        if (levels < 1 || levels > 15) {
+            notifications.show('Levels must be between 1 and 15', 'error');
+            return;
+        }
+
+        // Add or update zone
+        let success;
+        if (this.currentZone) {
+            // Update existing zone
+            success = zoneConfig.update(this.currentZone.name, { columns, levels });
+        } else {
+            // Add new zone
+            success = zoneConfig.add({
+                name,
+                columns,
+                levels,
+                layoutRow: 0,
+                layoutCol: state.zones.length
+            });
+        }
+
+        if (success) {
+            this.closeConfigModal();
+            wall.render();
+            wall.loadLiveData(); // Reload stock data for new cells
+        }
+    },
+
+    confirmDelete(zoneName) {
+        const zone = zoneConfig.getZone(zoneName);
+        if (!zone) return;
+
+        this.currentZone = zone;
+        const cellCount = zone.columns * zone.levels;
+
+        document.getElementById('deleteZoneName').textContent = zoneName;
+        document.getElementById('deleteZoneNameRepeat').textContent = zoneName;
+        document.getElementById('deleteZoneCellCount').textContent = cellCount;
+        document.getElementById('deleteZoneConfirmWipe').checked = false;
+        document.getElementById('deleteZoneBtn').disabled = true;
+
+        document.getElementById('zoneDeleteModal').classList.add('active');
+    },
+
+    closeDeleteModal() {
+        document.getElementById('zoneDeleteModal').classList.remove('active');
+        this.currentZone = null;
+    },
+
+    onConfirmCheckChange(checked) {
+        document.getElementById('deleteZoneBtn').disabled = !checked;
+    },
+
+    async executeDelete() {
+        if (!this.currentZone) return;
+
+        const success = zoneConfig.delete(this.currentZone.name);
+        if (success) {
+            this.closeDeleteModal();
+            wall.render();
+        }
+    }
+};
+
+// =============================================================================
 // Wall Grid Renderer
 // =============================================================================
 const wall = {
@@ -609,12 +883,99 @@ const wall = {
     },
 
     render() {
+        console.log('🏗️ Wall.render() called');
         dom.wallGrid.innerHTML = '';
+        const activeZones = zoneConfig.getAllZones();
+        console.log('📦 Active zones:', activeZones);
 
-        // Rows from Level 7 (top) to Level 1 (bottom)
-        for (let level = CONFIG.LEVELS; level >= 1; level--) {
+        if (activeZones.length === 0) {
+            console.log('⚠️ No zones configured, showing empty state');
+            dom.wallGrid.innerHTML = '<div class="empty-state">No zones configured. Click "Add Zone" to get started.</div>';
+            this.renderAddZoneButton();
+            return;
+        }
+
+        // Group zones by layout row for hybrid layout support
+        const zonesByRow = this.groupZonesByRow(activeZones);
+        console.log('📊 Zones by row:', zonesByRow);
+
+        // Render each row of zones
+        Object.keys(zonesByRow).sort().forEach(rowKey => {
+            const rowZones = zonesByRow[rowKey];
+            const wallRow = document.createElement('div');
+            wallRow.className = 'wall-row';
+            wallRow.style.gridTemplateColumns = `repeat(${rowZones.length}, 1fr)`;
+            wallRow.style.gap = '2rem';
+
+            // Render each zone in this row
+            rowZones.forEach(zone => {
+                console.log(`🎨 Rendering zone ${zone.name}`);
+                const zoneContainer = this.renderZone(zone);
+                wallRow.appendChild(zoneContainer);
+            });
+
+            dom.wallGrid.appendChild(wallRow);
+        });
+
+        // Add "Add Zone" button
+        console.log('➕ Adding "Add Zone" button');
+        this.renderAddZoneButton();
+        console.log('✅ Wall.render() complete');
+    },
+
+    groupZonesByRow(zones) {
+        const grouped = {};
+        zones.forEach(zone => {
+            const rowKey = zone.layoutRow || 0;
+            if (!grouped[rowKey]) grouped[rowKey] = [];
+            grouped[rowKey].push(zone);
+        });
+        // Sort zones within each row by layoutCol
+        Object.keys(grouped).forEach(key => {
+            grouped[key].sort((a, b) => (a.layoutCol || 0) - (b.layoutCol || 0));
+        });
+        return grouped;
+    },
+
+    renderZone(zone) {
+        const zoneContainer = document.createElement('div');
+        zoneContainer.className = 'zone-container';
+        zoneContainer.dataset.zoneName = zone.name;
+
+        // Zone header
+        const header = document.createElement('div');
+        header.className = 'zone-header';
+        header.innerHTML = `
+            <div class="zone-badge">ZONE ${zone.name}</div>
+            <div class="zone-info">${zone.columns} cols × ${zone.levels} levels</div>
+            <div class="zone-actions">
+                <button class="zone-action-btn" onclick="zoneManager.configureZone('${zone.name}')" title="Configure Zone">⚙️</button>
+                <button class="zone-action-btn zone-delete-btn" onclick="zoneManager.confirmDelete('${zone.name}')" title="Delete Zone">🗑️</button>
+            </div>
+        `;
+        zoneContainer.appendChild(header);
+
+        // Column headers
+        const colHeaders = document.createElement('div');
+        colHeaders.className = 'column-headers';
+        colHeaders.style.gridTemplateColumns = `40px repeat(${zone.columns}, 1fr)`;
+        colHeaders.innerHTML = `<div class="column-header"></div>`;
+        for (let col = 1; col <= zone.columns; col++) {
+            const colHeader = document.createElement('div');
+            colHeader.className = 'column-header';
+            colHeader.textContent = `${zone.name}-${col}`;
+            colHeaders.appendChild(colHeader);
+        }
+        zoneContainer.appendChild(colHeaders);
+
+        // Grid (levels from top to bottom)
+        const grid = document.createElement('div');
+        grid.className = 'zone-grid';
+
+        for (let level = zone.levels; level >= 1; level--) {
             const row = document.createElement('div');
             row.className = 'grid-row';
+            row.style.gridTemplateColumns = `40px repeat(${zone.columns}, 1fr)`;
 
             // Row label
             const label = document.createElement('div');
@@ -622,26 +983,35 @@ const wall = {
             label.textContent = `L${level}`;
             row.appendChild(label);
 
-            // Zone A cells
-            for (let col = 1; col <= CONFIG.COLUMNS; col++) {
-                const cellId = `A-${col}-${level}`;
-                row.appendChild(this.createCell(cellId, false));
-            }
-
-            // Zone divider
-            const divider = document.createElement('div');
-            divider.className = 'zone-divider';
-            row.appendChild(divider);
-
-            // Zone B cells
-            for (let col = 1; col <= CONFIG.COLUMNS; col++) {
-                const cellId = `B-${col}-${level}`;
-                const isPowerSupply = `B-${col}` === CONFIG.POWER_SUPPLY_COLUMN;
+            // Cells for this row
+            for (let col = 1; col <= zone.columns; col++) {
+                const cellId = `${zone.name}-${col}-${level}`;
+                const isPowerSupply = `${zone.name}-${col}` === CONFIG.POWER_SUPPLY_COLUMN;
                 row.appendChild(this.createCell(cellId, isPowerSupply));
             }
 
-            dom.wallGrid.appendChild(row);
+            grid.appendChild(row);
         }
+
+        zoneContainer.appendChild(grid);
+        return zoneContainer;
+    },
+
+    renderAddZoneButton() {
+        console.log('🔘 renderAddZoneButton() called');
+        const addRow = document.createElement('div');
+        addRow.className = 'wall-add-zone-row';
+        addRow.innerHTML = `
+            <button class="btn-add-zone" onclick="zoneManager.showAddModal()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Add New Zone
+            </button>
+        `;
+        dom.wallGrid.appendChild(addRow);
+        console.log('✅ Add Zone button appended to DOM');
     },
 
     createCell(cellId, isPowerSupply) {
@@ -730,7 +1100,7 @@ const wall = {
             const hasAllocation = allocated > 0;
 
             return `
-                <div class="stock-item ${hasAllocation ? 'has-allocation' : ''}">
+                <div class="stock-item ${hasAllocation ? 'has-allocation' : ''}" onclick="batchDetail.show(${item.pk})" style="cursor: pointer;">
                     <div class="stock-item-name">${item.part_detail?.name || 'Unknown'}</div>
                     <div class="stock-item-meta">
                         <span class="stock-qty ${hasAllocation ? 'partial' : ''}">${available}/${qty}</span>
@@ -778,26 +1148,53 @@ const wall = {
      * Load live stock data for all cells
      */
     async loadLiveData() {
-        console.log('📦 Loading live wall data...');
+        console.log('📦 Loading live wall data (parallel)...');
+        const startTime = performance.now();
 
-        // Iterate through all grid cells
-        for (let zone of ['A', 'B']) {
-            for (let col = 1; col <= CONFIG.COLUMNS; col++) {
-                for (let level = 1; level <= CONFIG.LEVELS; level++) {
-                    const cellId = `${zone}-${col}-${level}`;
-                    const isPowerSupply = zone === 'B' && `B-${col}` === CONFIG.POWER_SUPPLY_COLUMN;
+        // Get active zones from dynamic configuration
+        const activeZones = zoneConfig.getAllZones();
 
-                    try {
-                        await this.loadCellData(cellId, isPowerSupply);
-                    } catch (e) {
-                        // Silently continue on individual cell errors
-                        console.warn(`Failed to load ${cellId}:`, e);
-                    }
+        if (activeZones.length === 0) {
+            console.warn('⚠️ No active zones configured, skipping data load');
+            return;
+        }
+
+        // Collect all cell IDs with their metadata
+        const cellsToLoad = [];
+        for (let zone of activeZones) {
+            for (let col = 1; col <= zone.columns; col++) {
+                for (let level = 1; level <= zone.levels; level++) {
+                    const cellId = `${zone.name}-${col}-${level}`;
+                    const isPowerSupply = `${zone.name}-${col}` === CONFIG.POWER_SUPPLY_COLUMN;
+                    cellsToLoad.push({ cellId, isPowerSupply });
+
+                    // Add loading state to cell (skeleton UI)
+                    const cell = document.querySelector(`[data-cell-id="${cellId}"]`);
+                    if (cell) cell.classList.add('loading');
                 }
             }
         }
 
-        console.log('✓ Wall data loaded');
+        // Load all cells in parallel using Promise.all
+        const loadPromises = cellsToLoad.map(({ cellId, isPowerSupply }) =>
+            this.loadCellData(cellId, isPowerSupply)
+                .catch(e => {
+                    console.warn(`Failed to load ${cellId}:`, e);
+                    return null; // Return null so Promise.all doesn't fail
+                })
+                .finally(() => {
+                    // Remove loading state when done
+                    const cell = document.querySelector(`[data-cell-id="${cellId}"]`);
+                    if (cell) cell.classList.remove('loading');
+                })
+        );
+
+        // Wait for all cells to load
+        await Promise.all(loadPromises);
+
+        const endTime = performance.now();
+        const loadTime = ((endTime - startTime) / 1000).toFixed(2);
+        console.log(`✓ Wall data loaded in ${loadTime}s (${cellsToLoad.length} cells)`);
     },
 
     /**
@@ -1720,14 +2117,14 @@ const catalog = {
                 const batchLabel = String.fromCharCode(65 + idx); // A, B, C...
 
                 return `
-                    <div class="batch-item" data-stock-id="${stock.pk}">
+                    <div class="batch-item" data-stock-id="${stock.pk}" onclick="batchDetail.show(${stock.pk})" style="cursor: pointer;">
                         <div class="batch-label">Batch ${batchLabel}</div>
                         <div class="batch-location">${location}</div>
                         <div class="batch-details">
                             <span class="batch-qty">${qty} units</span>
                             <span class="batch-price">€${parseFloat(price).toFixed(2)}</span>
                         </div>
-                        <button class="batch-edit-btn" data-stock-id="${stock.pk}" title="Edit Batch">
+                        <button class="batch-edit-btn" data-stock-id="${stock.pk}" title="Edit Batch" onclick="event.stopPropagation(); batchEditor.show(${stock.pk})">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -1737,17 +2134,6 @@ const catalog = {
                 `;
             }).join('');
 
-            // Attach edit button listeners
-            batchList.querySelectorAll('.batch-edit-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const stockId = parseInt(btn.dataset.stockId);
-                    const stockItem = stocks.find(s => s.pk === stockId);
-                    if (stockItem) {
-                        batchEditor.show(stockItem);
-                    }
-                });
-            });
         } catch (e) {
             batchList.innerHTML = '<div class="batch-error">Failed to load batches</div>';
             console.error('Error loading batches:', e);
@@ -1833,6 +2219,177 @@ const catalog = {
                 </div>
             </div>
         `;
+    },
+
+    /**
+     * Scroll to a specific part in the catalog
+     */
+    scrollToPart(partPk) {
+        const partCard = document.querySelector(`[data-part-id="${partPk}"]`);
+        if (partCard) {
+            partCard.closest('.part-card').scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
+            // Optional: highlight the card briefly
+            const card = partCard.closest('.part-card');
+            card.style.transition = 'background 0.3s';
+            card.style.background = 'var(--accent-glow)';
+            setTimeout(() => {
+                card.style.background = '';
+            }, 1000);
+        }
+    }
+};
+
+// =============================================================================
+// Batch Detail Modal
+// =============================================================================
+const batchDetail = {
+    currentStock: null,
+
+    async show(stockId) {
+        try {
+            // Fetch full stock details
+            const stock = await api.request(`/stock/${stockId}/`);
+            this.currentStock = stock;
+
+            // Get part details
+            const part = state.parts.get(stock.part) || await api.request(`/part/${stock.part}/`);
+
+            // Populate modal
+            document.getElementById('batchDetailPartName').textContent = part.name || 'Unknown';
+            document.getElementById('batchDetailSKU').textContent = part.IPN || `PK-${stock.part}`;
+            document.getElementById('batchDetailLocation').textContent =
+                stock.location_detail?.name || 'Unknown';
+            document.getElementById('batchDetailQty').textContent = stock.quantity;
+            document.getElementById('batchDetailAllocated').textContent = stock.allocated || 0;
+            document.getElementById('batchDetailUnitCost').textContent =
+                `€${parseFloat(stock.purchase_price || 0).toFixed(2)}`;
+            document.getElementById('batchDetailTotalValue').textContent =
+                `€${(stock.quantity * (stock.purchase_price || 0)).toFixed(2)}`;
+            document.getElementById('batchDetailReceived').textContent =
+                this.formatDate(stock.stocktake_date);
+            document.getElementById('batchDetailBatchCode').textContent =
+                stock.batch || 'N/A';
+
+            // Parse supplier URL from notes
+            const supplierURL = this.extractSupplierURL(stock.notes);
+            const urlContainer = document.getElementById('batchDetailSupplierURL');
+
+            if (supplierURL) {
+                urlContainer.innerHTML = `
+                    <a href="${supplierURL}" target="_blank" rel="noopener noreferrer" class="supplier-link">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                            <polyline points="15 3 21 3 21 9"></polyline>
+                            <line x1="10" y1="14" x2="21" y2="3"></line>
+                        </svg>
+                        <span class="supplier-link-text">${this.shortenURL(supplierURL)}</span>
+                    </a>
+                `;
+            } else {
+                urlContainer.innerHTML = '<span class="detail-empty">No supplier URL provided</span>';
+            }
+
+            // Show/hide notes section
+            const notesSection = document.getElementById('batchDetailNotesSection');
+            const notesEl = document.getElementById('batchDetailNotes');
+
+            // Only show notes if they exist and are different from just the URL
+            const cleanNotes = stock.notes ? stock.notes.replace(supplierURL || '', '').trim() : '';
+            if (cleanNotes) {
+                notesSection.style.display = 'block';
+                notesEl.textContent = cleanNotes;
+            } else {
+                notesSection.style.display = 'none';
+            }
+
+            // Show modal
+            document.getElementById('batchDetailModal').classList.add('active');
+        } catch (e) {
+            console.error('Failed to load batch details:', e);
+            notifications.show('Failed to load batch details', 'error');
+        }
+    },
+
+    extractSupplierURL(notes) {
+        if (!notes) return null;
+        // Match http:// or https:// URLs
+        const urlMatch = notes.match(/https?:\/\/[^\s]+/);
+        return urlMatch ? urlMatch[0] : null;
+    },
+
+    shortenURL(url) {
+        try {
+            const urlObj = new URL(url);
+            let shortened = urlObj.hostname;
+            if (urlObj.pathname !== '/') {
+                const path = urlObj.pathname.slice(0, 30);
+                shortened += path + (urlObj.pathname.length > 30 ? '...' : '');
+            }
+            return shortened;
+        } catch {
+            return url.slice(0, 40) + (url.length > 40 ? '...' : '');
+        }
+    },
+
+    formatDate(dateStr) {
+        if (!dateStr) return 'N/A';
+        try {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        } catch {
+            return dateStr;
+        }
+    },
+
+    openEdit() {
+        this.close();
+        if (this.currentStock) {
+            batchEditor.show(this.currentStock.pk);
+        }
+    },
+
+    viewHistory() {
+        this.close();
+        router.navigate('history');
+        // Could filter history by this stock item in future
+    },
+
+    async deleteBatch() {
+        if (!this.currentStock) return;
+
+        const confirmed = confirm(
+            `Are you sure you want to delete this batch?\n\n` +
+            `Part: ${state.parts.get(this.currentStock.part)?.name || 'Unknown'}\n` +
+            `Quantity: ${this.currentStock.quantity}\n\n` +
+            `This action cannot be undone.`
+        );
+
+        if (!confirmed) return;
+
+        try {
+            await api.request(`/stock/${this.currentStock.pk}/`, { method: 'DELETE' });
+            notifications.show('Batch deleted successfully', 'success');
+            this.close();
+
+            // Refresh wall and catalog
+            wall.loadLiveData();
+            catalog.reload();
+        } catch (e) {
+            console.error('Failed to delete batch:', e);
+            notifications.show('Failed to delete batch', 'error');
+        }
+    },
+
+    close() {
+        document.getElementById('batchDetailModal').classList.remove('active');
+        this.currentStock = null;
     }
 };
 
@@ -2340,13 +2897,84 @@ const binModal = {
 // =============================================================================
 // Toast
 // =============================================================================
+// =============================================================================
+// Notification System (Top-Right Stack)
+// =============================================================================
+const notifications = {
+    queue: [],
+    maxVisible: 5,
+
+    show(message, type = 'info', options = {}) {
+        const id = `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const notif = {
+            id,
+            message,
+            type,  // 'info', 'success', 'error', 'warning'
+            title: options.title || this.getDefaultTitle(type),
+            autoDismiss: options.autoDismiss !== false,
+            timeout: options.timeout || 5000
+        };
+
+        this.queue.push(notif);
+        this.render();
+
+        if (notif.autoDismiss) {
+            setTimeout(() => this.dismiss(id), notif.timeout);
+        }
+    },
+
+    getDefaultTitle(type) {
+        const titles = {
+            'info': 'Info',
+            'success': 'Success',
+            'error': 'Error',
+            'warning': 'Warning'
+        };
+        return titles[type] || 'Notification';
+    },
+
+    getIcon(type) {
+        const icons = {
+            'info': 'ℹ️',
+            'success': '✓',
+            'error': '✕',
+            'warning': '⚠️'
+        };
+        return icons[type] || 'ℹ️';
+    },
+
+    dismiss(id) {
+        const index = this.queue.findIndex(n => n.id === id);
+        if (index > -1) {
+            this.queue.splice(index, 1);
+            this.render();
+        }
+    },
+
+    render() {
+        const container = document.getElementById('notificationContainer');
+        if (!container) return;
+
+        // Show only the most recent maxVisible notifications
+        const visibleNotifs = this.queue.slice(-this.maxVisible);
+
+        container.innerHTML = visibleNotifs.map(notif => `
+            <div class="notification ${notif.type}" data-id="${notif.id}">
+                <div class="notification-icon">${this.getIcon(notif.type)}</div>
+                <div class="notification-content">
+                    <div class="notification-title">${notif.title}</div>
+                    <div class="notification-message">${notif.message}</div>
+                </div>
+                <button class="notification-dismiss" onclick="notifications.dismiss('${notif.id}')">×</button>
+            </div>
+        `).join('');
+    }
+};
+
+// Legacy toast support (backward compatibility)
 const toast = {
     show(message, isError = false) {
-        dom.toastMessage.textContent = message;
-        dom.toast.classList.toggle('error', isError);
-        dom.toast.classList.add('active');
-
-        setTimeout(() => dom.toast.classList.remove('active'), 3000);
+        notifications.show(message, isError ? 'error' : 'success');
     }
 };
 
@@ -2361,49 +2989,7 @@ const alerts = {
      * Initialize alerts system
      */
     init() {
-        // Create alert widget in sidebar
-        this.createWidget();
-    },
-
-    /**
-     * Create alert widget in DOM
-     */
-    createWidget() {
-        const sidebar = document.querySelector('.sidebar');
-        if (!sidebar || document.getElementById('alertWidget')) return;
-
-        const widget = document.createElement('div');
-        widget.id = 'alertWidget';
-        widget.className = 'alert-widget';
-        widget.innerHTML = `
-            <div class="alert-badge" id="alertBadge" style="display: none;">
-                <span class="alert-count">0</span>
-            </div>
-            <div class="alert-panel" id="alertPanel">
-                <div class="alert-header">
-                    <span>⚠️ Low Stock</span>
-                    <button class="alert-close" id="alertClose">×</button>
-                </div>
-                <div class="alert-list" id="alertList">
-                    <div class="empty-alerts">No alerts</div>
-                </div>
-            </div>
-        `;
-
-        sidebar.appendChild(widget);
-
-        // Event listeners
-        const badge = document.getElementById('alertBadge');
-        const panel = document.getElementById('alertPanel');
-        const closeBtn = document.getElementById('alertClose');
-
-        badge?.addEventListener('click', () => {
-            panel?.classList.toggle('active');
-        });
-
-        closeBtn?.addEventListener('click', () => {
-            panel?.classList.remove('active');
-        });
+        // No longer creating sidebar widget - alerts now show in catalog view
     },
 
     /**
@@ -2446,7 +3032,7 @@ const alerts = {
         }
 
         this.alertCount = this.lowStockItems.length;
-        this.updateWidget();
+        this.updateCatalogCard();
         this.updateWallCells();
 
         if (this.alertCount > 0) {
@@ -2457,39 +3043,36 @@ const alerts = {
     },
 
     /**
-     * Update the alert widget UI
+     * Update the catalog alert card UI
      */
-    updateWidget() {
-        const badge = document.getElementById('alertBadge');
-        const countEl = badge?.querySelector('.alert-count');
-        const listEl = document.getElementById('alertList');
+    updateCatalogCard() {
+        const card = document.getElementById('lowStockAlertCard');
+        const countBadge = document.getElementById('lowStockCount');
+        const listEl = document.getElementById('lowStockCardList');
 
-        if (badge && countEl) {
-            if (this.alertCount > 0) {
-                badge.style.display = 'flex';
-                countEl.textContent = this.alertCount;
-                badge.classList.add('pulse');
-            } else {
-                badge.style.display = 'none';
-                badge.classList.remove('pulse');
-            }
+        if (!card) return;
+
+        if (this.alertCount === 0) {
+            card.style.display = 'none';
+            return;
+        }
+
+        card.style.display = 'block';
+        if (countBadge) {
+            countBadge.textContent = this.alertCount;
         }
 
         if (listEl) {
-            if (this.lowStockItems.length === 0) {
-                listEl.innerHTML = '<div class="empty-alerts">All stock levels OK</div>';
-            } else {
-                listEl.innerHTML = this.lowStockItems.map(item => `
-                    <div class="alert-item">
-                        <div class="alert-item-name">${item.name}</div>
-                        <div class="alert-item-detail">
-                            <span class="stock-critical">${item.available}</span>
-                            <span class="stock-separator">/</span>
-                            <span class="stock-min">${item.minimum}</span>
-                        </div>
+            listEl.innerHTML = this.lowStockItems.map(item => `
+                <div class="alert-card-item" onclick="catalog.scrollToPart(${item.pk})">
+                    <div class="alert-item-name">${item.name}</div>
+                    <div class="alert-item-stock">
+                        <span class="stock-current">${item.available}</span>
+                        <span class="stock-separator">/</span>
+                        <span class="stock-minimum">${item.minimum}</span>
                     </div>
-                `).join('');
-            }
+                </div>
+            `).join('');
         }
     },
 
@@ -2502,6 +3085,272 @@ const alerts = {
         this.lowStockItems.forEach(item => {
             console.log(`📦 Low stock: ${item.name} (${item.available}/${item.minimum})`);
         });
+    }
+};
+
+/**
+ * Toggle low stock dropdown visibility
+ */
+function toggleLowStockDropdown() {
+    const dropdown = document.getElementById('lowStockDropdown');
+    const expandBtn = document.getElementById('lowStockExpandBtn');
+
+    if (!dropdown || !expandBtn) return;
+
+    const isVisible = dropdown.style.display === 'block';
+    dropdown.style.display = isVisible ? 'none' : 'block';
+    expandBtn.classList.toggle('expanded', !isVisible);
+}
+
+// =============================================================================
+// History & Archive System
+// =============================================================================
+const history = {
+    movements: [],
+    filters: {},
+    loading: false,
+
+    async init() {
+        console.log('📜 Initializing History view...');
+        await this.loadMovements();
+        this.render();
+    },
+
+    async loadMovements(filters = {}) {
+        this.loading = true;
+        this.showLoading();
+
+        try {
+            // Use InvenTree's stock tracking API
+            // GET /api/stock/track/ returns stock movement history
+            const params = new URLSearchParams({
+                limit: 100,
+                ordering: '-date',  // Most recent first
+                ...filters
+            });
+
+            const response = await api.request(`/stock/track/?${params}`);
+            this.movements = response.results || response || [];
+
+            console.log(`📦 Loaded ${this.movements.length} stock movements`);
+        } catch (e) {
+            console.error('Failed to load stock movements:', e);
+            notifications.show('Failed to load history', 'error');
+            this.movements = [];
+        } finally {
+            this.loading = false;
+        }
+    },
+
+    showLoading() {
+        const timeline = document.getElementById('historyTimeline');
+        if (!timeline) return;
+
+        timeline.innerHTML = `
+            <div class="history-loading">
+                <div class="spinner"></div>
+                <p>Loading history...</p>
+            </div>
+        `;
+    },
+
+    render() {
+        const timeline = document.getElementById('historyTimeline');
+        if (!timeline) return;
+
+        if (this.movements.length === 0) {
+            timeline.innerHTML = `
+                <div class="history-empty">
+                    <div class="history-empty-icon">📦</div>
+                    <div class="history-empty-text">No stock movements found</div>
+                    <div class="history-empty-hint">Stock movements will appear here as you add, remove, or transfer inventory</div>
+                </div>
+            `;
+            return;
+        }
+
+        timeline.innerHTML = this.movements.map(movement => this.renderMovement(movement)).join('');
+    },
+
+    renderMovement(movement) {
+        const type = this.getMovementType(movement);
+        const icon = this.getIcon(type);
+        const date = new Date(movement.date);
+        const formattedDate = this.formatDate(date);
+
+        // Get part name from state if available
+        const partName = movement.item_detail?.part_detail?.name ||
+                        movement.part_detail?.name ||
+                        `Part #${movement.item || movement.part}`;
+
+        return `
+            <div class="history-item">
+                <div class="history-item-icon ${type}">
+                    ${icon}
+                </div>
+                <div class="history-item-content">
+                    <div class="history-item-header">
+                        <span class="history-item-type ${type}">${this.getTypeLabel(type)}</span>
+                        <span class="history-item-timestamp">${formattedDate}</span>
+                    </div>
+                    <div class="history-item-title">${partName}</div>
+                    <div class="history-item-details">
+                        ${this.renderDetails(movement, type)}
+                    </div>
+                    ${movement.notes ? `<div class="history-item-notes">${movement.notes}</div>` : ''}
+                </div>
+            </div>
+        `;
+    },
+
+    getMovementType(movement) {
+        // InvenTree tracking types: ADD, REMOVE, MOVE, UPDATE, etc.
+        const trackingType = movement.tracking_type || '';
+
+        if (trackingType.includes('ADD') || trackingType.includes('RECEIVE')) return 'add';
+        if (trackingType.includes('REMOVE') || trackingType.includes('CONSUME')) return 'remove';
+        if (trackingType.includes('MOVE') || trackingType.includes('TRANSFER')) return 'move';
+        return 'update';
+    },
+
+    getIcon(type) {
+        const icons = {
+            'add': '📥',
+            'remove': '📤',
+            'move': '🔄',
+            'update': '✏️'
+        };
+        return icons[type] || '📦';
+    },
+
+    getTypeLabel(type) {
+        const labels = {
+            'add': 'Stock Added',
+            'remove': 'Stock Removed',
+            'move': 'Transferred',
+            'update': 'Updated'
+        };
+        return labels[type] || 'Stock Movement';
+    },
+
+    renderDetails(movement, type) {
+        let details = [];
+
+        // Quantity
+        if (movement.quantity) {
+            details.push(`
+                <div class="history-detail-item">
+                    <span class="history-detail-label">Quantity</span>
+                    <span class="history-detail-value mono highlight">${movement.quantity}</span>
+                </div>
+            `);
+        }
+
+        // Location (from/to)
+        if (type === 'move') {
+            if (movement.location_detail) {
+                details.push(`
+                    <div class="history-detail-item">
+                        <span class="history-detail-label">To Location</span>
+                        <span class="history-detail-value">${movement.location_detail.name || 'Unknown'}</span>
+                    </div>
+                `);
+            }
+        } else if (movement.location_detail) {
+            details.push(`
+                <div class="history-detail-item">
+                    <span class="history-detail-label">Location</span>
+                    <span class="history-detail-value">${movement.location_detail.name || 'Unknown'}</span>
+                </div>
+            `);
+        }
+
+        // User
+        if (movement.user_detail) {
+            details.push(`
+                <div class="history-detail-item">
+                    <span class="history-detail-label">User</span>
+                    <span class="history-detail-value">${movement.user_detail.username || 'Unknown'}</span>
+                </div>
+            `);
+        }
+
+        // Tracking type
+        if (movement.tracking_type) {
+            details.push(`
+                <div class="history-detail-item">
+                    <span class="history-detail-label">Type</span>
+                    <span class="history-detail-value">${movement.tracking_type}</span>
+                </div>
+            `);
+        }
+
+        return details.join('');
+    },
+
+    formatDate(date) {
+        const now = new Date();
+        const diff = now - date;
+        const seconds = Math.floor(diff / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        const days = Math.floor(hours / 24);
+
+        if (days > 7) {
+            return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } else if (days > 0) {
+            return `${days} day${days > 1 ? 's' : ''} ago`;
+        } else if (hours > 0) {
+            return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+        } else if (minutes > 0) {
+            return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+        } else {
+            return 'Just now';
+        }
+    },
+
+    async applyFilters() {
+        const type = document.getElementById('historyFilterType')?.value;
+        const startDate = document.getElementById('historyStartDate')?.value;
+        const endDate = document.getElementById('historyEndDate')?.value;
+
+        this.filters = {};
+
+        if (type) {
+            this.filters.tracking_type = type;
+        }
+
+        if (startDate) {
+            this.filters.min_date = startDate;
+        }
+
+        if (endDate) {
+            this.filters.max_date = endDate;
+        }
+
+        await this.loadMovements(this.filters);
+        this.render();
+    },
+
+    clearFilters() {
+        // Reset filter inputs
+        const typeFilter = document.getElementById('historyFilterType');
+        const startDate = document.getElementById('historyStartDate');
+        const endDate = document.getElementById('historyEndDate');
+
+        if (typeFilter) typeFilter.value = '';
+        if (startDate) startDate.value = '';
+        if (endDate) endDate.value = '';
+
+        this.filters = {};
+        this.loadMovements();
+        this.render();
     }
 };
 
@@ -2569,6 +3418,9 @@ async function init() {
     // Router
     router.init();
 
+    // Zone Configuration
+    zoneConfig.init();
+
     // Wall
     wall.init();
 
@@ -2594,7 +3446,7 @@ async function init() {
         CONFIG.API_TOKEN = savedToken;
         const isValid = await auth.validateToken();
         if (isValid) {
-            auth.onAuthSuccess();
+            await auth.onAuthSuccess();
             return;
         }
         // Token invalid, show login
@@ -2655,7 +3507,7 @@ const auth = {
             if (success) {
                 // Save token to localStorage
                 localStorage.setItem('inventree_token', CONFIG.API_TOKEN);
-                this.onAuthSuccess();
+                await this.onAuthSuccess();
             } else {
                 errorEl.textContent = 'Invalid username or password';
                 btnText.textContent = 'Sign In';
@@ -2738,7 +3590,14 @@ const auth = {
     }
 };
 
-document.addEventListener('DOMContentLoaded', () => {
-    auth.init();
-    init();
+// Expose zone modules globally for inline onclick handlers
+window.zoneConfig = zoneConfig;
+window.zoneManager = zoneManager;
+
+document.addEventListener('DOMContentLoaded', async () => {
+    // Initialize UI structure first (creates DOM elements)
+    await init();
+
+    // Then handle authentication (which may populate those elements)
+    await auth.init();
 });
