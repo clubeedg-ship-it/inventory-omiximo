@@ -4712,3 +4712,54 @@ body.not-authenticated .toast {
     background: #dc2626;
     color: white;
 }
+
+/* =============================================================================
+   Transaction Delete Button
+   ============================================================================= */
+.transaction-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.transaction-header-left {
+    display: flex;
+    gap: var(--space-sm);
+    align-items: center;
+}
+
+.transaction-delete-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    cursor: pointer;
+    opacity: 0;
+    transition: all var(--transition);
+}
+
+.transaction-card:hover .transaction-delete-btn {
+    opacity: 1;
+}
+
+.transaction-delete-btn:hover {
+    background: rgba(220, 38, 38, 0.1);
+    border-color: var(--signal-critical);
+    color: var(--signal-critical);
+}
+
+.transaction-delete-btn svg {
+    stroke: currentColor;
+}
+
+[data-theme="light"] .transaction-delete-btn:hover {
+    background: rgba(220, 38, 38, 0.1);
+    border-color: #dc2626;
+    color: #dc2626;
+}

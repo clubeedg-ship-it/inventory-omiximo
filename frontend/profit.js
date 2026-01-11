@@ -337,15 +337,23 @@ const recordSale = {
             productName,
             date: new Date().toISOString().split('T')[0],
             components: profitState.components.map(c => ({
+                partId: c.partId,
                 partName: c.partName,
                 qty: c.qty,
-                cost: c.fifoCost
+                cost: c.fifoCost,
+                // Store batch details for potential restoration
+                batchesUsed: c.batchesUsed.map(b => ({
+                    stockId: b.stockId,
+                    qty: b.qty,
+                    unitCost: b.unitCost,
+                    location: b.location
+                }))
             })),
             cost: totalCost,
             sale: salePrice,
             margin: margin,
 
-            // NEW: Store breakdown for historical reference
+            // Store breakdown for historical reference
             costBreakdown: {
                 components: componentsCost,
                 commission: commissionCost,
@@ -388,6 +396,93 @@ const recordSale = {
         }
         if (margin) {
             profitState.totalMargin = parseFloat(margin);
+        }
+    },
+
+    confirmDeleteSale(orderId) {
+        const tx = profitState.transactions.find(t => t.orderId === orderId);
+        if (!tx) {
+            toast.show('Transaction not found', 'error');
+            return;
+        }
+
+        const hasBatchData = tx.components.some(c => c.batchesUsed && c.batchesUsed.length > 0);
+
+        let message = `DELETE SALE\n\n` +
+            `Are you sure you want to delete this sale?\n\n` +
+            `Order: ${tx.orderId}\n` +
+            `Product: ${tx.productName}\n` +
+            `Sale: EUR ${tx.sale.toFixed(2)}\n` +
+            `Margin: EUR ${tx.margin.toFixed(2)}\n\n`;
+
+        if (hasBatchData) {
+            message += `The following components will be restored to inventory:\n`;
+            tx.components.forEach(c => {
+                message += `  - ${c.partName} x ${c.qty}\n`;
+            });
+        } else {
+            message += `NOTE: This is an older sale without batch tracking.\n` +
+                `Stock will NOT be restored automatically.`;
+        }
+
+        message += `\n\nThis action cannot be undone.`;
+
+        if (confirm(message)) {
+            this.deleteSale(orderId);
+        }
+    },
+
+    async deleteSale(orderId) {
+        const txIndex = profitState.transactions.findIndex(t => t.orderId === orderId);
+        if (txIndex === -1) {
+            toast.show('Transaction not found', 'error');
+            return;
+        }
+
+        const tx = profitState.transactions[txIndex];
+
+        // Restore stock for each component if batch data exists
+        let stockRestored = false;
+        for (const component of tx.components) {
+            if (component.batchesUsed && component.batchesUsed.length > 0) {
+                for (const batch of component.batchesUsed) {
+                    try {
+                        // Get current stock quantity and add back what was consumed
+                        const currentQty = await this.getStockQty(batch.stockId);
+                        await api.request(`/stock/${batch.stockId}/`, {
+                            method: 'PATCH',
+                            body: JSON.stringify({
+                                quantity: currentQty + batch.qty
+                            })
+                        });
+                        stockRestored = true;
+                        console.log(`Restored ${batch.qty} units to stock ${batch.stockId}`);
+                    } catch (err) {
+                        console.error(`Failed to restore stock ${batch.stockId}:`, err);
+                        // Continue with other restorations even if one fails
+                    }
+                }
+            }
+        }
+
+        // Remove transaction from list
+        profitState.transactions.splice(txIndex, 1);
+
+        // Update total margin
+        profitState.totalMargin -= tx.margin;
+
+        // Save updated transactions
+        this.saveTransactions();
+
+        // Refresh UI
+        profitEngine.render();
+
+        // Refresh parts to show updated stock
+        if (stockRestored) {
+            await loadParts();
+            toast.show('Sale deleted and stock restored', 'success');
+        } else {
+            toast.show('Sale deleted (no stock to restore)', 'success');
         }
     }
 };
@@ -884,8 +979,16 @@ const profitEngine = {
             return `
             <div class="transaction-card" data-order="${tx.orderId}">
                 <div class="transaction-header">
-                    <span class="transaction-id">${tx.orderId}</span>
-                    <span class="transaction-date">${tx.date}</span>
+                    <div class="transaction-header-left">
+                        <span class="transaction-id">${tx.orderId}</span>
+                        <span class="transaction-date">${tx.date}</span>
+                    </div>
+                    <button class="transaction-delete-btn" onclick="event.stopPropagation(); recordSale.confirmDeleteSale('${tx.orderId}')" title="Delete Sale">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                    </button>
                 </div>
                 <div class="transaction-product">${tx.productName}</div>
 
