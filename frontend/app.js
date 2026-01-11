@@ -2814,9 +2814,11 @@ const batchDetail = {
     },
 
     openEdit() {
-        this.close();
         if (this.currentStock) {
-            batchEditor.show(this.currentStock.pk);
+            // Pass the full stock object, not just the ID
+            const stockToEdit = this.currentStock;
+            this.close();
+            batchEditor.show(stockToEdit);
         }
     },
 
