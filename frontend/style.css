@@ -4241,3 +4241,429 @@ body.not-authenticated .toast {
     color: var(--signal-critical);
     font-weight: 700;
 }
+
+/* =============================================================================
+   Bin Info Modal Styles - Swiss Sci-Fi Design
+   ============================================================================= */
+.modal-bin-info {
+    max-width: 420px;
+    overflow: hidden;
+}
+
+/* Sleek Header with Bin Badge */
+.bin-info-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-lg);
+    background: linear-gradient(135deg, var(--accent) 0%, rgba(0, 80, 102, 0.8) 100%);
+    position: relative;
+}
+
+.bin-badge-container {
+    flex-shrink: 0;
+}
+
+.bin-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(8px);
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    font-family: var(--font-mono);
+}
+
+.bin-badge-zone {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: white;
+    line-height: 1;
+}
+
+.bin-badge-location {
+    font-size: 0.625rem;
+    color: rgba(255, 255, 255, 0.7);
+    margin-top: 2px;
+}
+
+.bin-badge-bin {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--accent-light, #4dd0e1);
+    background: rgba(0, 0, 0, 0.3);
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    margin-top: 2px;
+}
+
+.bin-header-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.bin-info-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: white;
+    margin: 0;
+    font-family: var(--font-mono);
+}
+
+.bin-info-subtitle {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.7);
+    display: block;
+    margin-top: 4px;
+}
+
+.modal-close-float {
+    position: absolute;
+    top: var(--space-md);
+    right: var(--space-md);
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    color: white;
+    transition: all var(--transition);
+}
+
+.modal-close-float:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: rotate(90deg);
+}
+
+/* Content Container */
+.bin-info-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    padding: var(--space-lg);
+}
+
+/* Stock Status Card */
+.bin-stock-card {
+    display: flex;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    background: linear-gradient(135deg, var(--bg-elevated) 0%, var(--bg-base) 100%);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--glass-border);
+}
+
+.bin-stock-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    background: var(--accent);
+    border-radius: var(--radius-md);
+    flex-shrink: 0;
+}
+
+.bin-stock-icon {
+    stroke: white;
+}
+
+.bin-stock-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.bin-product-name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-xs);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bin-stock-metrics {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-sm);
+}
+
+.bin-metric {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.bin-metric-value {
+    font-family: var(--font-mono);
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+.bin-metric-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.bin-metric-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--border);
+}
+
+/* Stock Progress Bar */
+.bin-stock-bar {
+    width: 100%;
+    height: 6px;
+    background: var(--bg-base);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.bin-stock-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--signal-healthy) 100%);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.bin-stock-fill.low {
+    background: linear-gradient(90deg, var(--signal-critical) 0%, var(--signal-warning) 100%);
+}
+
+.bin-value {
+    font-size: 0.75rem;
+    color: var(--signal-healthy-text);
+    font-weight: 500;
+    margin-top: var(--space-xs);
+}
+
+/* Empty State */
+.bin-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-xl) var(--space-lg);
+    text-align: center;
+}
+
+.bin-empty-graphic {
+    width: 80px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-elevated);
+    border-radius: 50%;
+    margin-bottom: var(--space-md);
+}
+
+.bin-empty-graphic svg {
+    stroke: var(--text-muted);
+    opacity: 0.5;
+}
+
+.bin-empty-text {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-xs);
+}
+
+.bin-empty-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* Configuration Panel */
+.bin-config-panel {
+    background: var(--bg-base);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    overflow: hidden;
+}
+
+.bin-config-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+}
+
+.bin-config-header svg {
+    stroke: var(--accent);
+}
+
+/* Config Option Row */
+.config-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-md);
+    border-bottom: 1px solid var(--border);
+    transition: background var(--transition);
+}
+
+.config-option:last-child {
+    border-bottom: none;
+}
+
+.config-option:hover {
+    background: var(--bg-elevated);
+}
+
+.config-option-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.config-option-icon {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-elevated);
+    border-radius: var(--radius-md);
+    flex-shrink: 0;
+}
+
+.config-option-icon svg {
+    stroke: var(--text-secondary);
+}
+
+.config-option-icon.split-fifo {
+    background: rgba(0, 80, 102, 0.15);
+}
+
+.config-option-icon.split-fifo svg {
+    stroke: var(--accent);
+}
+
+.config-option-icon.single-bin {
+    background: rgba(156, 39, 176, 0.15);
+}
+
+.config-option-icon.single-bin svg {
+    stroke: #9c27b0;
+}
+
+.config-option-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.config-option-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.config-option-desc {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    line-height: 1.3;
+}
+
+/* Modern Toggle Switch */
+.toggle-switch {
+    position: relative;
+    cursor: pointer;
+}
+
+.toggle-switch input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-track {
+    display: block;
+    width: 44px;
+    height: 24px;
+    background: var(--border);
+    border-radius: 12px;
+    position: relative;
+    transition: background var(--transition);
+}
+
+.toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    transition: transform var(--transition);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch input:checked + .toggle-track {
+    background: var(--accent);
+}
+
+.toggle-switch input:checked + .toggle-track .toggle-thumb {
+    transform: translateX(20px);
+}
+
+/* Quick Actions */
+.bin-quick-actions {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+.bin-action-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition);
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.bin-action-btn:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 80, 102, 0.3);
+}
+
+.bin-action-btn:hover svg {
+    stroke: white;
+}
+
+.bin-action-btn svg {
+    stroke: var(--text-muted);
+    transition: stroke var(--transition);
+}

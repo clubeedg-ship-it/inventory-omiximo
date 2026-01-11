@@ -1011,7 +1011,7 @@ const shelfConfig = {
         config.capacities[partId].binA = capacity;
         config.capacities[partId].binB = capacity;
         this.setShelfConfig(shelfId, { capacities: config.capacities });
-        console.log(`📐 Set capacity for part ${partId} in ${shelfId}: ${capacity} per bin`);
+        console.log(`📐 Set capacity for part ${partId} in ${shelfId}: ${capacity === null ? 'unlimited (FIFO batch-by-batch)' : capacity + ' per bin'}`);
     },
 
     /**
@@ -1264,15 +1264,31 @@ const binInfoModal = {
         const currentCapacity = shelfConfig.getBinCapacity(this.currentShelfId, partId, this.currentBinLetter);
 
         const newCapacity = prompt(
-            `Enter bin capacity for this product:\n(Current: ${currentCapacity || 'not set'})`,
+            `Enter bin capacity for this product:\n(Current: ${currentCapacity || 'not set'})\n\nLeave empty or enter 0 to remove capacity limit.\nWhen not set, batches are retrieved one-by-one (FIFO order).`,
             currentCapacity || ''
         );
 
-        if (newCapacity && !isNaN(parseInt(newCapacity))) {
-            shelfConfig.setBinCapacity(this.currentShelfId, partId, parseInt(newCapacity));
-            toast.show(`Capacity set to ${newCapacity} units`, 'success');
-            // Refresh display
-            document.getElementById('binProductCapacity').textContent = newCapacity;
+        if (newCapacity === null) {
+            // User cancelled
+            return;
+        }
+
+        const parsedCapacity = parseInt(newCapacity);
+
+        if (newCapacity === '' || parsedCapacity === 0) {
+            // Clear capacity - make it unlimited
+            shelfConfig.setBinCapacity(this.currentShelfId, partId, null);
+            toast.show('Capacity limit removed (unlimited)', 'success');
+            document.getElementById('binProductCapacity').textContent = '∞';
+            // Update progress bar to hide when unlimited
+            const fillEl = document.getElementById('binStockFill');
+            if (fillEl) fillEl.style.width = '0%';
+        } else if (!isNaN(parsedCapacity) && parsedCapacity > 0) {
+            shelfConfig.setBinCapacity(this.currentShelfId, partId, parsedCapacity);
+            toast.show(`Capacity set to ${parsedCapacity} units`, 'success');
+            document.getElementById('binProductCapacity').textContent = parsedCapacity;
+        } else {
+            toast.show('Invalid capacity value', 'error');
         }
     }
 };
