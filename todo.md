@@ -1,0 +1,14 @@
+## To-do list
+- [ ]  rendering speed time - the pages currently take too long to load and sometimes it stays blanc when i switch pages till i run cmd+r.
+- [ ]  nofication system and card - the current notification “ball popup” is too big and not appealing, it should be smaller. and i should have the possibility of dismiss these notifications when clicking the close button in the card popup, then the “ball popup” disappears and only comes back when the page is reload. the only static place you should see the low stock info is at the top of all parts catalog list, as a yellow/red card saying “low stock alert” that expands a dropdown from all low stock parts.
+- [ ]  keep history of this all batchs that were used as “archived”, reach the history page (with an appealing and intuitive ui for this purpose) by clicking “history” on settings menu.
+- [ ]  add a popup when we click into a batch to seee further details, like supplier url and which bin it is.
+- [ ]  ability to add more stacks, so the wall will be divided by side-by-side stack blocks (a, b) in one view height. there will be a “+” button underneath them and when clicked adds another stack underneath it (then only one stack dinamically fits most of view width, only with the “+” sign now at the right, if another stack is added then the two stacks divide the same view width again with the “+“ button underneath). we should, when trying to add a new zone, specify how many stacks (collumns) and how many shelves (rows/levels) it has. also the possibility to delete an specific zone (with a EMERGENCY popup expalining that this button DELETES ALL DATA FROM THIS ZONE) or just wipe the data and leave the zone as a clean slate.
+
+
+
+
+## NEW TASKS
+- [ ]  “bin a/bin b” logic.
+    - [ ]  currently, shelves are divided by A/B, also it’s logic. the theory is that everytime i add a batch in certain shelve (right now you can select to put it on bin a or bin b, WHICH SHOULD NOT BE SO!!!) i should select only which shelve, and the software would handle “how many products does it fit in bin a/b?” so it already retrieves the oldest batch to bin b, and everytime the whole batch in bin b is completely gone the software should retrieve batch in bin a to bin b, emptying bin a by the exact amount that currently fits on bin b
+    - [ ]  every bin should has a popup when it is clicked, dispalying which product it is in there. in this popup we should have 2 checkbox: 1. split fifo logic - this makes so that the bin a and bin b are two completely different products with a different appending logic, so if bin b is empty, it doesnt retrieve the batch that is in bin a. 2. split bins - this would make it so some shelves have bin a/b logic, and some no (just like the b-4 collumn), so the whole shelve has no separations

@@ -1,6 +1,6 @@
 # Project: Omiximo Inventory OS
 
-Last Updated: 2026-01-11 17:30:00 UTC
+Last Updated: 2026-01-11 20:45:00 UTC
 
 ---
 
@@ -275,7 +275,44 @@ docker compose down -v
 
 ## Agent Dispatch History
 
-### 2026-01-11 - Phase 5 Dynamic Zone System Implementation (COMPLETE)
+### 2026-01-11 (Evening) - localStorage Migration & 2-Column Grid Layout (CRITICAL FIX)
+- **Agents Used:**
+  - orchestrator (root cause analysis and implementation)
+- **Skills Used:** None
+- **MCP Tools Used:**
+  - Playwright browser automation for diagnostics and testing
+- **Outcome:** ✅ Fixed critical localStorage corruption issue and implemented 2-column grid layout
+- **Implementation Details:**
+  - **localStorage Migration System:**
+    - Added version-based migration with `omiximo_zone_version` = '2'
+    - Migration automatically clears incompatible pre-Phase 5 zone data
+    - Auto-restores default zones A & B after migration
+    - Runs once per browser (checks version before migrating)
+  - **2-Column Grid Layout:**
+    - Implemented automatic 2-column grid with wrapping
+    - Row calculation: `Math.floor(zoneIndex / 2)` (zones 0-1 in row 0, 2-3 in row 1, etc.)
+    - Column calculation: `zoneIndex % 2` (alternates 0, 1, 0, 1...)
+    - Auto-correction on init() fixes existing zones with incorrect positions
+- **Bugs Fixed:**
+  1. **Empty grid after hard refresh** - localStorage had incompatible old format lacking isActive/layoutRow/layoutCol
+  2. **Migration not restoring defaults** - Initial migration cleared data but didn't immediately restore zones A & B
+  3. **3 zones in one row** - Zone addition hardcoded layoutRow: 0, causing horizontal overflow
+- **Files Modified:**
+  - `/frontend/app.js` - Migration logic in zoneConfig.init() (lines 624-669), 2-column layout in zoneManager (lines 839-853), v15→v17
+  - `/frontend/index.html` - Cache buster updates v14→v15→v16→v17
+- **Testing:**
+  - Created `/tmp/test_migration.js` - Verified old localStorage migration
+  - Created `/tmp/test_user_scenario.js` - Full user scenario test with persistent context
+  - Created `/tmp/test_layout_fix.js` - Verified 3-zone layout correction
+  - Playwright confirmed migration works and grid renders correctly
+- **Learnings:**
+  - Hard refresh clears HTTP cache but NOT localStorage (critical UX insight)
+  - Migration must restore defaults immediately, not rely on subsequent load()
+  - Mathematical grid positioning (modulo & floor division) more robust than hardcoding
+- **Duration:** 2 hours
+- **Status:** CRITICAL BUG RESOLVED ✅
+
+### 2026-01-11 (Afternoon) - Phase 5 Dynamic Zone System Implementation (COMPLETE)
 - **Agents Used:**
   - orchestrator (coordination and bug fixing)
   - sequential-thinking (root cause analysis)
@@ -357,7 +394,46 @@ docker compose down -v
 
 ## Recent Decisions
 
-### 2026-01-11 - Auto-Suggestion UX for Zone Naming
+### 2026-01-11 (Evening) - localStorage Migration Pattern for Breaking Changes
+- **Context:** Phase 5 changed localStorage structure, causing empty grid for existing users despite hard refresh
+- **Decision:** Implement version-based migration system with automatic data restoration
+- **Rationale:**
+  - Hard refresh only clears HTTP cache, not localStorage (users don't know this)
+  - Incompatible data structures cause silent failures (no error messages)
+  - Manual localStorage.clear() is too technical for end users
+  - Migration must be automatic and transparent
+- **Implementation:**
+  - Store `omiximo_zone_version` = '2' in localStorage
+  - On init, check if stored version matches current version
+  - If mismatch: clear old data, restore defaults, save new version
+  - Skip redundant load() after migration (early return)
+  - Auto-correct any existing zones with wrong layout positions
+- **Impact:**
+  - Users upgrading from pre-Phase 5 automatically get working grid
+  - No manual intervention required
+  - Future breaking changes can use version '3', '4', etc.
+  - Establishes pattern for all localStorage schema changes
+
+### 2026-01-11 (Evening) - 2-Column Grid Layout with Mathematical Positioning
+- **Context:** Adding Zone C placed it horizontally alongside A & B, making layout too wide
+- **Decision:** Implement 2-column grid with automatic wrapping using modulo arithmetic
+- **Rationale:**
+  - User explicitly requested "maximum should be 2, anything else goes underneath"
+  - Hardcoded positions (layoutRow: 0, layoutCol: length) don't scale
+  - Mathematical formulas are self-correcting and predictable
+  - Works for unlimited zones (A-Z and beyond)
+- **Implementation:**
+  - Row position: `Math.floor(zoneIndex / 2)` (integer division)
+  - Column position: `zoneIndex % 2` (modulo 2)
+  - Results: Zone 0→(0,0), Zone 1→(0,1), Zone 2→(1,0), Zone 3→(1,1), etc.
+  - Add auto-correction on init() to fix existing zones
+- **Impact:**
+  - Grid always displays 2 columns maximum
+  - New zones automatically wrap to next row
+  - Page width stays manageable
+  - Layout is consistent and predictable
+
+### 2026-01-11 (Afternoon) - Auto-Suggestion UX for Zone Naming
 - **Context:** Users tried to add "Zone A" and received confusing error "Zone A already exists"
 - **Decision:** Implement auto-suggestion system that pre-fills next available zone letter
 - **Rationale:**
@@ -454,6 +530,8 @@ docker compose down -v
   - `omiximo_view` - current view
   - `omiximo_tenant` - tenant context
   - `omiximo_transactions` - transaction history
+  - `omiximo_zones` - dynamic zone configuration (Phase 5+)
+  - `omiximo_zone_version` - migration version tracker (currently '2')
   - `theme` - dark/light mode
 
 ### Error Handling
@@ -494,6 +572,13 @@ docker compose down -v
 - **Symptoms:** Wall grid renders correctly but shows no stock data (all cells empty/dashes)
 - **Solution:** Refactored loadLiveData() to use zoneConfig.getAllZones() instead of hardcoded values (fixed Jan 11, 2026)
 - **Prevention:** When refactoring zone configuration, update ALL functions that iterate over zones
+
+### Empty Grid After localStorage Schema Change (RESOLVED)
+- **Problem:** Phase 5 changed localStorage schema, causing empty grid for existing users
+- **Symptoms:** "No zones configured" message despite hard refresh, zones exist in localStorage but with old format
+- **Root Cause:** Hard refresh clears HTTP cache but NOT localStorage; old data lacking isActive/layoutRow/layoutCol fields
+- **Solution:** Implemented version-based migration system with `omiximo_zone_version` (fixed Jan 11, 2026 evening)
+- **Prevention:** Always use migration pattern for localStorage schema changes; increment version number for breaking changes
 
 ---
 
@@ -663,6 +748,28 @@ FRONTEND_PORT=1441
 
 ## Changelog
 
+### 2026-01-11 (Evening) - localStorage Migration & Grid Layout Fix 🔧
+- **Added: localStorage Migration System**
+  - Version-based migration with `omiximo_zone_version` = '2'
+  - Automatic detection and clearing of incompatible pre-Phase 5 data
+  - Auto-restoration of default zones A & B after migration
+  - One-time migration per browser (version check prevents re-runs)
+  - Auto-correction for existing zones with incorrect layout positions
+- **Fixed: 2-Column Grid Layout**
+  - Maximum 2 zones per row with automatic wrapping to next row
+  - Mathematical positioning: row = floor(index/2), col = index%2
+  - Zone C now wraps to second row instead of extending first row
+  - Layout dynamically fits page width regardless of zone count
+- **Fixed: Empty Grid Bug (CRITICAL)**
+  - Resolved issue where users saw no grid after hard refresh
+  - Root cause: localStorage had old format without isActive/layoutRow/layoutCol
+  - Hard refresh clears HTTP cache but NOT localStorage (key learning)
+- **Testing: Comprehensive Playwright Verification**
+  - test_migration.js - Verified old localStorage format migration
+  - test_user_scenario.js - Full user scenario with persistent browser context
+  - test_layout_fix.js - Verified 3-zone layout auto-correction
+- **Updated:** app.js?v=17, index.html?v=17
+
 ### 2026-01-11 (Afternoon) - Phase 5 Complete ✅
 - **Added: Dynamic Zone Configuration System**
   - zoneConfig module with localStorage persistence
@@ -707,7 +814,7 @@ FRONTEND_PORT=1441
 
 **Last Reviewed:** 2026-01-11
 **Maintained By:** Orchestrator Agent + Team
-**Version:** 0.8.0 (Alpha)
+**Version:** 0.9.0 (Alpha - Phase 5 Complete with Migration System)
 
 ---
 
