@@ -647,6 +647,24 @@ const zoneConfig = {
             state.zones = CONFIG.DEFAULT_ZONES;
             this.save();
         }
+
+        // Fix layout positions: ensure max 2 zones per row
+        let needsSave = false;
+        state.zones.forEach((zone, index) => {
+            const correctRow = Math.floor(index / 2);
+            const correctCol = index % 2;
+            if (zone.layoutRow !== correctRow || zone.layoutCol !== correctCol) {
+                console.log(`🔧 Fixing layout for zone ${zone.name}: row ${zone.layoutRow}->${correctRow}, col ${zone.layoutCol}->${correctCol}`);
+                zone.layoutRow = correctRow;
+                zone.layoutCol = correctCol;
+                needsSave = true;
+            }
+        });
+        if (needsSave) {
+            this.save();
+            console.log('✅ Zone layouts corrected and saved');
+        }
+
         console.log(`📦 Zone Config: Loaded ${state.zones.length} zones`, state.zones);
     },
 
@@ -838,12 +856,17 @@ const zoneManager = {
             success = zoneConfig.update(this.currentZone.name, { columns, levels });
         } else {
             // Add new zone
+            // Calculate layout position: max 2 zones per row
+            const zoneIndex = state.zones.length;
+            const layoutRow = Math.floor(zoneIndex / 2);  // 0-1 in row 0, 2-3 in row 1, etc.
+            const layoutCol = zoneIndex % 2;              // Alternates 0, 1, 0, 1...
+
             success = zoneConfig.add({
                 name,
                 columns,
                 levels,
-                layoutRow: 0,
-                layoutCol: state.zones.length
+                layoutRow,
+                layoutCol
             });
         }
 
