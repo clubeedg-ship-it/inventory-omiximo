@@ -1669,6 +1669,7 @@ const wall = {
         let totalQty = 0;
         let qtyA = 0;
         let qtyB = 0;
+        let qtyBase = 0;
 
         if (isPowerSupply) {
             // Single bin for power supplies
@@ -1683,19 +1684,45 @@ const wall = {
             // Split bins (A = new, B = old)
             const locA = state.locations.get(`${cellId}-A`);
             const locB = state.locations.get(`${cellId}-B`);
+            const locBase = state.locations.get(cellId);
+
+            // Use a Set to track stock IDs and prevent double-counting
+            const seenStockIds = new Set();
 
             if (locA) {
                 const stockA = await api.getStockAtLocation(locA.pk);
-                qtyA = stockA.reduce((sum, item) => sum + (item.quantity || 0), 0);
+                for (const item of stockA) {
+                    if (!seenStockIds.has(item.pk)) {
+                        seenStockIds.add(item.pk);
+                        qtyA += item.quantity || 0;
+                    }
+                }
             }
 
             if (locB) {
                 const stockB = await api.getStockAtLocation(locB.pk);
-                qtyB = stockB.reduce((sum, item) => sum + (item.quantity || 0), 0);
+                for (const item of stockB) {
+                    if (!seenStockIds.has(item.pk)) {
+                        seenStockIds.add(item.pk);
+                        qtyB += item.quantity || 0;
+                    }
+                }
             }
 
-            totalQty = qtyA + qtyB;
-            this.updateCellStatus(cellId, this.getStatus(totalQty), qtyA, qtyB);
+            // Also check base shelf location (stock may exist directly at shelf without A/B suffix)
+            if (locBase) {
+                const stockBase = await api.getStockAtLocation(locBase.pk);
+                for (const item of stockBase) {
+                    if (!seenStockIds.has(item.pk)) {
+                        seenStockIds.add(item.pk);
+                        qtyBase += item.quantity || 0;
+                    }
+                }
+            }
+
+            totalQty = qtyA + qtyB + qtyBase;
+            // Add base qty to A for display purposes (newer stock)
+            this.updateCellStatus(cellId, this.getStatus(totalQty), qtyA + qtyBase, qtyB);
         }
     },
 
@@ -2589,7 +2616,7 @@ const catalog = {
                             <span class="batch-qty">${qty} units</span>
                             <span class="batch-price">€${parseFloat(price).toFixed(2)}</span>
                         </div>
-                        <button class="batch-edit-btn" data-stock-id="${stock.pk}" title="Edit Batch" onclick="event.stopPropagation(); batchEditor.show(${stock.pk})">
+                        <button class="batch-edit-btn" data-stock-id="${stock.pk}" title="Edit Batch" onclick="event.stopPropagation(); batchEditor.showById(${stock.pk})">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -2982,6 +3009,19 @@ const batchEditor = {
     hide() {
         document.getElementById('batchEditModal').classList.remove('active');
         this.currentStock = null;
+    },
+
+    /**
+     * Show editor by fetching stock data first (for direct edit button)
+     */
+    async showById(stockId) {
+        try {
+            const stock = await api.request(`/stock/${stockId}/?part_detail=true&location_detail=true`);
+            this.show(stock);
+        } catch (e) {
+            console.error('Failed to load stock:', e);
+            toast.show('Failed to load batch data', 'error');
+        }
     },
 
     async submit(e) {
