@@ -4667,3 +4667,48 @@ body.not-authenticated .toast {
     stroke: var(--text-muted);
     transition: stroke var(--transition);
 }
+
+/* =============================================================================
+   Modal Actions Split Layout
+   ============================================================================= */
+.modal-actions-split {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-md);
+    margin-top: var(--space-lg);
+}
+
+.modal-actions-right {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+/* Danger Button */
+.btn-danger {
+    padding: var(--space-sm) var(--space-md);
+    background: transparent;
+    border: 1px solid var(--signal-critical);
+    border-radius: var(--radius-md);
+    color: var(--signal-critical);
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-family: var(--font-sans);
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.btn-danger:hover {
+    background: var(--signal-critical);
+    color: white;
+}
+
+[data-theme="light"] .btn-danger {
+    border-color: #dc2626;
+    color: #dc2626;
+}
+
+[data-theme="light"] .btn-danger:hover {
+    background: #dc2626;
+    color: white;
+}

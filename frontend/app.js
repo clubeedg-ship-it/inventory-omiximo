@@ -2875,10 +2875,12 @@ const batchEditor = {
         const modal = document.getElementById('batchEditModal');
         const closeBtn = document.getElementById('batchEditClose');
         const cancelBtn = document.getElementById('batchEditCancel');
+        const deleteBtn = document.getElementById('batchEditDelete');
         const form = document.getElementById('batchEditForm');
 
         if (closeBtn) closeBtn.addEventListener('click', () => this.hide());
         if (cancelBtn) cancelBtn.addEventListener('click', () => this.hide());
+        if (deleteBtn) deleteBtn.addEventListener('click', () => this.confirmDelete());
         if (modal) {
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) this.hide();
@@ -3054,6 +3056,68 @@ const batchEditor = {
             console.error('❌ Batch update error:', e);
             console.error('❌ Stock object was:', this.currentStock);
             toast.show(`Failed to update batch: ${e.message}`, 'error');
+        }
+    },
+
+    confirmDelete() {
+        if (!this.currentStock) {
+            toast.show('Error: No batch selected', 'error');
+            return;
+        }
+
+        // Get part name for confirmation message
+        let partName = 'this batch';
+        if (this.currentStock.part_detail?.name) {
+            partName = this.currentStock.part_detail.name;
+        } else if (this.currentStock.part && state.parts.has(this.currentStock.part)) {
+            partName = state.parts.get(this.currentStock.part).name;
+        }
+
+        const qty = this.currentStock.quantity || 0;
+        const confirmed = confirm(
+            `⚠️ DELETE BATCH\n\n` +
+            `Are you sure you want to permanently delete this batch?\n\n` +
+            `Part: ${partName}\n` +
+            `Quantity: ${qty} units\n\n` +
+            `This action cannot be undone.`
+        );
+
+        if (confirmed) {
+            this.delete();
+        }
+    },
+
+    async delete() {
+        if (!this.currentStock) return;
+
+        const stockId = this.currentStock.pk || this.currentStock.id;
+        if (!stockId) {
+            toast.show('Error: Invalid batch data', 'error');
+            return;
+        }
+
+        try {
+            console.log(`🗑️ Deleting stock ${stockId}...`);
+
+            await api.request(`/stock/${stockId}/`, {
+                method: 'DELETE'
+            });
+
+            toast.show('Batch deleted successfully', 'success');
+            this.hide();
+
+            // Refresh the catalog and wall
+            await catalog.reload();
+
+            if (state.expandedPart) {
+                await catalog.loadBatches(state.expandedPart);
+            }
+
+            wall.loadLiveData();
+
+        } catch (e) {
+            console.error('❌ Batch delete error:', e);
+            toast.show(`Failed to delete batch: ${e.message}`, 'error');
         }
     }
 };
