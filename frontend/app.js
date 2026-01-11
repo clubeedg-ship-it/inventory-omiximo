@@ -2814,11 +2814,15 @@ const batchDetail = {
     },
 
     openEdit() {
+        console.log('🔧 batchDetail.openEdit() called, currentStock:', this.currentStock);
         if (this.currentStock) {
             // Pass the full stock object, not just the ID
             const stockToEdit = this.currentStock;
             this.close();
             batchEditor.show(stockToEdit);
+        } else {
+            console.error('❌ openEdit: currentStock is null');
+            toast.show('Error: No batch selected', 'error');
         }
     },
 
@@ -2883,40 +2887,62 @@ const batchEditor = {
     },
 
     show(stockItem) {
+        console.log('📝 batchEditor.show() called with:', stockItem);
+
+        if (!stockItem) {
+            console.error('❌ batchEditor.show() received null/undefined stockItem');
+            toast.show('Error: No batch data', 'error');
+            return;
+        }
+
         this.currentStock = stockItem;
         const modal = document.getElementById('batchEditModal');
 
-        // Populate form
-        document.getElementById('batchEditQty').value = stockItem.quantity || 0;
-        document.getElementById('batchEditPrice').value = stockItem.purchase_price || 0;
-
-        // Show current location in readonly info
-        const currentLocName = stockItem.location_detail?.name || 'Unknown';
-        document.getElementById('batchEditLocation').textContent = currentLocName;
-
-        // Show part name
-        const partName = stockItem.part_detail?.name || 'Unknown Part';
-        document.getElementById('batchEditPartName').textContent = partName;
-
-        // Populate location dropdown
-        const locSelect = document.getElementById('batchEditLocationSelect');
-        locSelect.innerHTML = '<option value="">Select new location...</option>';
-
-        // Add all locations (only Bin A/B bins for FIFO system)
-        for (const [name, loc] of state.locations.entries()) {
-            if (name.match(/^[AB]-\d-\d-[AB]$/)) {  // Only show bins (e.g. A-1-1-A, B-2-3-B)
-                const option = new Option(name, loc.pk);
-                // Mark current location
-                if (loc.pk === stockItem.location) {
-                    option.text += ' (current)';
-                    option.disabled = true;
-                }
-                locSelect.appendChild(option);
-            }
+        if (!modal) {
+            console.error('❌ batchEditModal element not found in DOM');
+            toast.show('Error: Edit modal not found', 'error');
+            return;
         }
 
-        modal.classList.add('active');
-        document.getElementById('batchEditQty').focus();
+        try {
+            // Populate form
+            document.getElementById('batchEditQty').value = stockItem.quantity || 0;
+            document.getElementById('batchEditPrice').value = stockItem.purchase_price || 0;
+
+            // Show current location in readonly info
+            const currentLocName = stockItem.location_detail?.name || 'Unknown';
+            document.getElementById('batchEditLocation').textContent = currentLocName;
+
+            // Show part name
+            const partName = stockItem.part_detail?.name || 'Unknown Part';
+            document.getElementById('batchEditPartName').textContent = partName;
+
+            // Populate location dropdown
+            const locSelect = document.getElementById('batchEditLocationSelect');
+            if (locSelect) {
+                locSelect.innerHTML = '<option value="">Select new location...</option>';
+
+                // Add all bin locations (matches patterns like A-1-3-A, B-2-4-B, etc.)
+                for (const [name, loc] of state.locations.entries()) {
+                    if (name.match(/^[A-Z]-\d+-\d+-[AB]$/) || name.match(/^[A-Z]-\d+-\d+$/)) {
+                        const option = new Option(name, loc.pk);
+                        // Mark current location
+                        if (loc.pk === stockItem.location) {
+                            option.text += ' (current)';
+                            option.disabled = true;
+                        }
+                        locSelect.appendChild(option);
+                    }
+                }
+            }
+
+            modal.classList.add('active');
+            console.log('✅ batchEditModal opened');
+            document.getElementById('batchEditQty').focus();
+        } catch (e) {
+            console.error('❌ Error in batchEditor.show():', e);
+            toast.show('Error opening edit modal', 'error');
+        }
     },
 
     hide() {
