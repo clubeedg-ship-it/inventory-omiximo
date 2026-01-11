@@ -2715,9 +2715,10 @@ const batchDetail = {
 
     async show(stockId) {
         try {
-            // Fetch full stock details
-            const stock = await api.request(`/stock/${stockId}/`);
+            // Fetch full stock details with nested part and location info
+            const stock = await api.request(`/stock/${stockId}/?part_detail=true&location_detail=true`);
             this.currentStock = stock;
+            console.log('📦 batchDetail loaded stock:', stock);
 
             // Get part details
             const part = state.parts.get(stock.part) || await api.request(`/part/${stock.part}/`);
@@ -2905,22 +2906,48 @@ const batchEditor = {
         }
 
         try {
-            // Populate form
-            document.getElementById('batchEditQty').value = stockItem.quantity || 0;
-            document.getElementById('batchEditPrice').value = stockItem.purchase_price || 0;
+            // Populate form with existing values
+            const qtyInput = document.getElementById('batchEditQty');
+            const priceInput = document.getElementById('batchEditPrice');
+
+            if (qtyInput) {
+                qtyInput.value = stockItem.quantity ?? 0;
+                console.log('📝 Set quantity to:', stockItem.quantity);
+            }
+            if (priceInput) {
+                priceInput.value = stockItem.purchase_price ?? 0;
+                console.log('📝 Set price to:', stockItem.purchase_price);
+            }
 
             // Show current location in readonly info
-            const currentLocName = stockItem.location_detail?.name || 'Unknown';
+            // Try multiple sources for location name
+            let currentLocName = 'Unknown';
+            if (stockItem.location_detail?.name) {
+                currentLocName = stockItem.location_detail.name;
+            } else if (stockItem.location) {
+                // Try to get from state.locations
+                for (const [name, loc] of state.locations.entries()) {
+                    if (loc.pk === stockItem.location) {
+                        currentLocName = name;
+                        break;
+                    }
+                }
+            }
             document.getElementById('batchEditLocation').textContent = currentLocName;
 
-            // Show part name
-            const partName = stockItem.part_detail?.name || 'Unknown Part';
+            // Show part name - try multiple sources
+            let partName = 'Unknown Part';
+            if (stockItem.part_detail?.name) {
+                partName = stockItem.part_detail.name;
+            } else if (stockItem.part && state.parts.has(stockItem.part)) {
+                partName = state.parts.get(stockItem.part).name;
+            }
             document.getElementById('batchEditPartName').textContent = partName;
 
             // Populate location dropdown
             const locSelect = document.getElementById('batchEditLocationSelect');
             if (locSelect) {
-                locSelect.innerHTML = '<option value="">Select new location...</option>';
+                locSelect.innerHTML = '<option value="">Keep current location</option>';
 
                 // Add all bin locations (matches patterns like A-1-3-A, B-2-4-B, etc.)
                 for (const [name, loc] of state.locations.entries()) {
@@ -2937,8 +2964,13 @@ const batchEditor = {
             }
 
             modal.classList.add('active');
-            console.log('✅ batchEditModal opened');
-            document.getElementById('batchEditQty').focus();
+            console.log('✅ batchEditModal opened with values:', {
+                qty: qtyInput?.value,
+                price: priceInput?.value,
+                location: currentLocName,
+                part: partName
+            });
+            qtyInput?.focus();
         } catch (e) {
             console.error('❌ Error in batchEditor.show():', e);
             toast.show('Error opening edit modal', 'error');
@@ -2953,11 +2985,25 @@ const batchEditor = {
     async submit(e) {
         e.preventDefault();
 
-        if (!this.currentStock) return;
+        if (!this.currentStock) {
+            console.error('❌ submit: currentStock is null');
+            toast.show('Error: No batch data', 'error');
+            return;
+        }
+
+        // Get stock ID - InvenTree uses 'pk' as the primary key
+        const stockId = this.currentStock.pk || this.currentStock.id;
+        if (!stockId) {
+            console.error('❌ submit: No stock ID found', this.currentStock);
+            toast.show('Error: Invalid batch data', 'error');
+            return;
+        }
 
         const qty = parseFloat(document.getElementById('batchEditQty').value);
         const price = parseFloat(document.getElementById('batchEditPrice').value);
         const newLocationId = document.getElementById('batchEditLocationSelect').value;
+
+        console.log('📝 batchEditor.submit():', { stockId, qty, price, newLocationId });
 
         // Manual validation (since form has novalidate)
         if (isNaN(qty) || qty < 0) {
@@ -2977,12 +3023,13 @@ const batchEditor = {
                 console.log(`📦 Location change detected: moving stock to new location`);
 
                 // Transfer stock to new location
-                await handshake.moveStock(this.currentStock.pk, parseInt(newLocationId), qty);
+                await handshake.moveStock(stockId, parseInt(newLocationId), qty);
                 toast.show('Batch moved to new location', 'success');
             }
 
-            // Update quantity and price (even if only those changed)
-            await api.request(`/stock/${this.currentStock.pk}/`, {
+            // Update quantity and price
+            console.log(`📝 Updating stock ${stockId}: qty=${qty}, price=${price}`);
+            await api.request(`/stock/${stockId}/`, {
                 method: 'PATCH',
                 body: JSON.stringify({
                     quantity: qty,
@@ -2994,7 +3041,6 @@ const batchEditor = {
             this.hide();
 
             // Refresh the catalog and wall to show updated data
-            // Refresh the catalog and wall to show updated data
             await catalog.reload();
 
             // Reload batches for the currently expanded part if in catalog
@@ -3005,8 +3051,9 @@ const batchEditor = {
             wall.loadLiveData();
 
         } catch (e) {
-            console.error('Batch update error:', e);
-            toast.show('Failed to update batch', 'error');
+            console.error('❌ Batch update error:', e);
+            console.error('❌ Stock object was:', this.currentStock);
+            toast.show(`Failed to update batch: ${e.message}`, 'error');
         }
     }
 };
