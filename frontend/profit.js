@@ -34,7 +34,7 @@ const profitState = {
 // =============================================================================
 const recordSale = {
     init() {
-        console.log('🔷 recordSale.init() starting...');
+        console.log('recordSale.init() starting...');
 
         const modal = document.getElementById('recordSaleModal');
         const closeBtn = document.getElementById('recordSaleClose');
@@ -44,7 +44,7 @@ const recordSale = {
         const salePriceInput = document.getElementById('salePrice');
         const openBtn = document.getElementById('btnRecordSale');
 
-        console.log('🔷 DOM elements found:', {
+        console.log('DOM elements found:', {
             modal: !!modal,
             closeBtn: !!closeBtn,
             cancelBtn: !!cancelBtn,
@@ -67,15 +67,15 @@ const recordSale = {
 
         if (openBtn) {
             openBtn.addEventListener('click', () => {
-                console.log('🔷 Record Sale button clicked!');
+                console.log('Record Sale button clicked!');
                 this.show();
             });
-            console.log('🔷 Event listener attached to Record Sale button');
+            console.log('Event listener attached to Record Sale button');
         } else {
-            console.error('🔴 Record Sale button not found!');
+            console.error('Record Sale button not found!');
         }
 
-        console.log('🔷 recordSale.init() complete');
+        console.log('recordSale.init() complete');
     },
 
     async show() {
@@ -512,7 +512,7 @@ const profitEngine = {
 
             // Use CONFIG.API_TOKEN from app.js instead of undefined state.token
             if (!CONFIG.API_TOKEN) {
-                console.warn('⚠️ calculateInventoryValue: No auth token available');
+                console.warn('calculateInventoryValue: No auth token available');
                 return;
             }
 
@@ -536,7 +536,7 @@ const profitEngine = {
                         }
 
                         const elapsed = ((performance.now() - startTime) / 1000).toFixed(3);
-                        console.log(`💰 Inventory Value (cached): €${value.toFixed(2)} (${items.length} batches) in ${elapsed}s`);
+                        console.log(`Inventory Value (cached): €${value.toFixed(2)} (${items.length} batches) in ${elapsed}s`);
                         return;
                     }
                 } catch (e) {
@@ -545,7 +545,7 @@ const profitEngine = {
             }
 
             // Cache miss or expired - fetch fresh data
-            console.log('🔄 Fetching fresh inventory data...');
+            console.log('Fetching fresh inventory data...');
             const stockItems = await api.request('/stock/?limit=1000');
             const items = stockItems.results || stockItems;
 
@@ -576,7 +576,7 @@ const profitEngine = {
             }
 
             const elapsed = ((performance.now() - startTime) / 1000).toFixed(3);
-            console.log(`💰 Inventory Value Updated: €${totalVal.toFixed(2)} (${items.length} batches) in ${elapsed}s`);
+            console.log(`Inventory Value Updated: €${totalVal.toFixed(2)} (${items.length} batches) in ${elapsed}s`);
 
         } catch (err) {
             console.error('Inventory Value Calc Error:', err);

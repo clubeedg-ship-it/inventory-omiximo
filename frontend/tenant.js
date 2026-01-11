@@ -19,16 +19,16 @@ const tenant = {
      * Initialize tenant module
      */
     init() {
-        console.log('🏢 Initializing tenant module...');
+        console.log('Initializing tenant module...');
 
         // Load tenant context from localStorage
         const savedTenant = localStorage.getItem('omiximo_tenant');
         if (savedTenant) {
             try {
                 this.current = JSON.parse(savedTenant);
-                console.log(`  ✓ Restored tenant context: ${this.current.name}`);
+                console.log(`Restored tenant context: ${this.current.name}`);
             } catch (e) {
-                console.warn('  ⚠ Invalid saved tenant, clearing');
+                console.warn('Invalid saved tenant, clearing');
                 localStorage.removeItem('omiximo_tenant');
             }
         }
@@ -58,7 +58,7 @@ const tenant = {
                     displayName: g.name.replace('tenant_', '').replace(/_/g, ' ').toUpperCase(),
                     groupId: g.pk
                 }));
-                console.log(`  ✓ Loaded ${this.tenants.length} tenants`);
+                console.log(`Loaded ${this.tenants.length} tenants`);
             }
         } catch (e) {
             console.error('Failed to load tenants:', e);
@@ -88,7 +88,7 @@ const tenant = {
                             name: tenantGroup.name.replace('tenant_', ''),
                             groupId: tenantGroup.pk
                         };
-                        console.log(`  ✓ User tenant: ${this.current.name}`);
+                        console.log(`User tenant: ${this.current.name}`);
                     }
                 }
 
@@ -112,14 +112,14 @@ const tenant = {
         if (tenantId === null || tenantId === 'all') {
             this.current = null;
             localStorage.removeItem('omiximo_tenant');
-            console.log('🏢 Switched to ALL TENANTS view');
+            console.log('Switched to ALL TENANTS view');
             toast.show('Viewing all tenants', 'info');
         } else {
             const tenant = this.tenants.find(t => t.id === tenantId || t.name === tenantId);
             if (tenant) {
                 this.current = tenant;
                 localStorage.setItem('omiximo_tenant', JSON.stringify(tenant));
-                console.log(`🏢 Switched to tenant: ${tenant.displayName}`);
+                console.log(`Switched to tenant: ${tenant.displayName}`);
                 toast.show(`Switched to ${tenant.displayName}`, 'success');
             }
         }
@@ -132,7 +132,7 @@ const tenant = {
      * Refresh current view data with new tenant context
      */
     async refreshData() {
-        console.log('🔄 Refreshing data for tenant:', this.current?.name || 'ALL');
+        console.log('Refreshing data for tenant:', this.current?.name || 'ALL');
 
         // Reload locations and parts with new tenant filter
         if (typeof loadLocations === 'function') {
@@ -169,10 +169,10 @@ const tenant = {
         container.innerHTML = `
             <div class="tenant-selector">
                 <select id="tenantSelect" onchange="tenant.switchTenant(this.value)">
-                    <option value="all" ${!this.current ? 'selected' : ''}>👁️ All Tenants</option>
+                    <option value="all" ${!this.current ? 'selected' : ''}>All Tenants</option>
                     ${this.tenants.map(t => `
                         <option value="${t.id}" ${this.current?.id === t.id ? 'selected' : ''}>
-                            🏢 ${t.displayName}
+                            ${t.displayName}
                         </option>
                     `).join('')}
                 </select>

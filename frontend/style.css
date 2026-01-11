@@ -4190,7 +4190,7 @@ body.not-authenticated .toast {
 }
 
 .warning-list li::before {
-    content: '⚠️';
+    content: '';
     position: absolute;
     left: 0;
     font-size: 0.875rem;

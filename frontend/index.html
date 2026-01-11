@@ -62,7 +62,7 @@
                 <div id="tenantSelectorContainer" class="tenant-selector-container" style="display: none;"></div>
 
                 <div class="scan-status" id="scanStatus">
-                    <span>📡</span>
+                    <span>○</span>
                     <span id="scanText">Ready</span>
                 </div>
 
@@ -86,7 +86,7 @@
                         <!-- User Info -->
                         <div class="settings-section">
                             <div class="user-info">
-                                <div class="user-avatar" id="userAvatar">👤</div>
+                                <div class="user-avatar" id="userAvatar">U</div>
                                 <div class="user-details">
                                     <span class="user-name" id="userName">User</span>
                                     <span class="user-role" id="userRole">Loading...</span>
@@ -110,8 +110,8 @@
                             <div class="setting-row">
                                 <span class="setting-label">Theme</span>
                                 <button class="theme-switch" id="themeSwitch">
-                                    <span class="theme-option" data-theme="dark">🌙 Dark</span>
-                                    <span class="theme-option" data-theme="light">☀️ Light</span>
+                                    <span class="theme-option" data-theme="dark">Dark</span>
+                                    <span class="theme-option" data-theme="light">Light</span>
                                 </button>
                             </div>
                         </div>
@@ -173,7 +173,7 @@
                 <!-- Low Stock Alert Card -->
                 <div class="low-stock-alert-card" id="lowStockAlertCard" style="display: none;">
                     <div class="alert-card-header" onclick="toggleLowStockDropdown()">
-                        <div class="alert-card-icon">⚠️</div>
+                        <div class="alert-card-icon"></div>
                         <div class="alert-card-title">
                             <span class="alert-count-badge" id="lowStockCount">0</span> Low Stock Alerts
                         </div>
@@ -299,7 +299,7 @@
             <!-- HISTORY VIEW -->
             <section class="view" id="view-history">
                 <div class="view-header">
-                    <h1>📦 Batch History & Archive</h1>
+                    <h1>Batch History & Archive</h1>
                     <div class="history-filters">
                         <select id="historyFilterType" class="filter-select">
                             <option value="">All Movement Types</option>
@@ -352,7 +352,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn-print-label" id="btnPrintBinLabel" title="Print Label">
-                    🏷️ Print Label
+                    Print Label
                 </button>
             </div>
         </div>
@@ -388,7 +388,7 @@
                         <input type="url" id="inputSourceUrl" placeholder="https://supplier.com/order/123">
                     </div>
                     <button type="submit" class="btn-confirm">
-                        <span>✓</span>
+                        <span></span>
                         CONFIRM
                     </button>
                 </form>
@@ -468,7 +468,7 @@
 
                 <!-- Supplier Section -->
                 <div class="detail-section detail-section-highlight">
-                    <h3>📦 Supplier Information</h3>
+                    <h3>Supplier Information</h3>
                     <div class="detail-supplier-url" id="batchDetailSupplierURL">
                         <span class="detail-empty">No supplier URL provided</span>
                     </div>
@@ -560,9 +560,9 @@
     <!-- Zone Delete Confirmation Modal -->
     <div class="modal-overlay" id="zoneDeleteModal">
         <div class="modal modal-danger">
-            <div class="modal-icon-warning">⚠️</div>
+            <div class="modal-icon-warning"></div>
             <div class="modal-header">
-                <h2 class="modal-title">⚠️ EMERGENCY WARNING ⚠️</h2>
+                <h2 class="modal-title"> EMERGENCY WARNING </h2>
             </div>
 
             <div class="modal-content">
@@ -859,7 +859,7 @@
 
                     <!-- NEW: Automatic Cost Breakdown -->
                     <div class="cost-breakdown-section">
-                        <h3>📊 Cost Breakdown</h3>
+                        <h3>Cost Breakdown</h3>
                         <div class="cost-breakdown-grid">
                             <!-- Components Cost (calculated) -->
                             <div class="cost-item">
@@ -932,7 +932,7 @@
     <div class="modal-overlay" id="loginModal">
         <div class="modal modal-login">
             <div class="modal-header">
-                <div class="login-logo">🔐</div>
+                <div class="login-logo">⬡</div>
                 <h2 class="modal-title">Omiximo Inventory</h2>
                 <p class="login-subtitle">Sign in with your InvenTree account</p>
             </div>
@@ -1051,11 +1051,11 @@
                             <input type="number" id="partPurchasePrice" min="0" step="0.01" placeholder="0.00">
                         </div>
                     </div>
-                    <p class="form-hint" id="fifoHint">📦 Auto-FIFO: Stock goes to Bin B first, then Bin A</p>
+                    <p class="form-hint" id="fifoHint">Auto-FIFO: Stock goes to Bin B first, then Bin A</p>
                     <div class="form-actions">
                         <button type="button" class="btn-secondary" id="partFormCancel">Cancel</button>
                         <button type="submit" class="btn-confirm">
-                            <span id="partFormIcon">✓</span>
+                            <span id="partFormIcon"></span>
                             <span id="partFormLabel">Create Part</span>
                         </button>
                     </div>
@@ -1119,10 +1119,10 @@
     <!-- Runtime Config (Generated by Docker) -->
     <script src="env.js?v=6"></script>
     <!-- App Logic -->
-    <script src="app.js?v=28"></script>
+    <script src="app.js?v=29"></script>
     <script src="labels.js?v=6"></script>
-    <script src="profit.js?v=9"></script>
-    <script src="tenant.js?v=6"></script>
+    <script src="profit.js?v=10"></script>
+    <script src="tenant.js?v=7"></script>
 </body>
 
 </html>

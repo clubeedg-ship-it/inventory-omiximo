@@ -449,10 +449,10 @@ const router = {
         // Default to 'wall' if nothing saved, but don't force it if we are already there
         const targetView = savedView || 'wall';
 
-        console.log('🔍 Checking saved view:', targetView, 'current:', state.currentView, 'instant:', instant);
+        console.log(' Checking saved view:', targetView, 'current:', state.currentView, 'instant:', instant);
 
         if (targetView !== state.currentView) {
-            console.log('🔄 Restoring view to:', targetView);
+            console.log('Restoring view to:', targetView);
 
             if (instant) {
                 // Immediate switch (no animation)
@@ -572,13 +572,13 @@ const settings = {
                     if (resp.is_superuser) {
                         userRole.textContent = '⭐ Super Admin';
                     } else if (resp.is_staff) {
-                        userRole.textContent = '👤 Staff';
+                        userRole.textContent = 'Staff';
                     } else {
-                        userRole.textContent = '👤 User';
+                        userRole.textContent = 'User';
                     }
                 }
                 if (userAvatar) {
-                    userAvatar.textContent = resp.is_superuser ? '👑' : '👤';
+                    userAvatar.textContent = resp.is_superuser ? '' : '';
                 }
             }
         } catch (e) {
@@ -622,28 +622,28 @@ const zoneConfig = {
     },
 
     init() {
-        console.log('🚀 zoneConfig.init() called');
+        console.log('zoneConfig.init() called');
 
         // Migration: Clear incompatible old zone data from pre-Phase 5
         const ZONE_VERSION = '2'; // Phase 5 localStorage format
         const storedVersion = localStorage.getItem('omiximo_zone_version');
 
         if (storedVersion !== ZONE_VERSION) {
-            console.log('🔄 Migrating zone config to v2... (clearing old incompatible data)');
+            console.log('Migrating zone config to v2... (clearing old incompatible data)');
             localStorage.removeItem('omiximo_zones');
             localStorage.setItem('omiximo_zone_version', ZONE_VERSION);
             // After migration, force reload of defaults
             state.zones = CONFIG.DEFAULT_ZONES;
             this.save();
-            console.log('✅ Migration complete - defaults restored:', state.zones);
+            console.log('Migration complete - defaults restored:', state.zones);
             return; // Skip load() since we just set defaults
         }
 
         this.load();
-        console.log(`📊 After load, state.zones =`, state.zones);
+        console.log(`After load, state.zones =`, state.zones);
         if (state.zones.length === 0) {
             // First time - use defaults
-            console.log('⚙️ No zones found, loading defaults:', CONFIG.DEFAULT_ZONES);
+            console.log(' No zones found, loading defaults:', CONFIG.DEFAULT_ZONES);
             state.zones = CONFIG.DEFAULT_ZONES;
             this.save();
         }
@@ -654,7 +654,7 @@ const zoneConfig = {
             const correctRow = Math.floor(index / 2);
             const correctCol = index % 2;
             if (zone.layoutRow !== correctRow || zone.layoutCol !== correctCol) {
-                console.log(`🔧 Fixing layout for zone ${zone.name}: row ${zone.layoutRow}->${correctRow}, col ${zone.layoutCol}->${correctCol}`);
+                console.log(`Fixing layout for zone ${zone.name}: row ${zone.layoutRow}->${correctRow}, col ${zone.layoutCol}->${correctCol}`);
                 zone.layoutRow = correctRow;
                 zone.layoutCol = correctCol;
                 needsSave = true;
@@ -662,10 +662,10 @@ const zoneConfig = {
         });
         if (needsSave) {
             this.save();
-            console.log('✅ Zone layouts corrected and saved');
+            console.log('Zone layouts corrected and saved');
         }
 
-        console.log(`📦 Zone Config: Loaded ${state.zones.length} zones`, state.zones);
+        console.log(`Zone Config: Loaded ${state.zones.length} zones`, state.zones);
     },
 
     load() {
@@ -683,7 +683,7 @@ const zoneConfig = {
     save() {
         try {
             localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state.zones));
-            console.log('💾 Zone config saved');
+            console.log('Zone config saved');
         } catch (e) {
             console.error('Failed to save zone config:', e);
             notifications.show('Failed to save zone configuration', 'error');
@@ -921,9 +921,9 @@ const shelfConfig = {
     config: {},
 
     init() {
-        console.log('🗄️ shelfConfig.init() called');
+        console.log('shelfConfig.init() called');
         this.load();
-        console.log(`📦 Shelf Config: Loaded ${Object.keys(this.config).length} shelf configurations`);
+        console.log(`Shelf Config: Loaded ${Object.keys(this.config).length} shelf configurations`);
     },
 
     load() {
@@ -941,7 +941,7 @@ const shelfConfig = {
     save() {
         try {
             localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.config));
-            console.log('💾 Shelf config saved');
+            console.log('Shelf config saved');
         } catch (e) {
             console.error('Failed to save shelf config:', e);
         }
@@ -1011,7 +1011,7 @@ const shelfConfig = {
         config.capacities[partId].binA = capacity;
         config.capacities[partId].binB = capacity;
         this.setShelfConfig(shelfId, { capacities: config.capacities });
-        console.log(`📐 Set capacity for part ${partId} in ${shelfId}: ${capacity === null ? 'unlimited (FIFO batch-by-batch)' : capacity + ' per bin'}`);
+        console.log(`Set capacity for part ${partId} in ${shelfId}: ${capacity === null ? 'unlimited (FIFO batch-by-batch)' : capacity + ' per bin'}`);
     },
 
     /**
@@ -1033,7 +1033,7 @@ const shelfConfig = {
      */
     toggleSplitFifo(shelfId, enabled) {
         this.setShelfConfig(shelfId, { splitFifo: enabled });
-        console.log(`🔀 Split FIFO ${enabled ? 'enabled' : 'disabled'} for ${shelfId}`);
+        console.log(`Split FIFO ${enabled ? 'enabled' : 'disabled'} for ${shelfId}`);
     },
 
     /**
@@ -1041,7 +1041,7 @@ const shelfConfig = {
      */
     toggleSplitBins(shelfId, enabled) {
         this.setShelfConfig(shelfId, { splitBins: enabled });
-        console.log(`📦 Single Bin mode ${enabled ? 'enabled' : 'disabled'} for ${shelfId}`);
+        console.log(`Single Bin mode ${enabled ? 'enabled' : 'disabled'} for ${shelfId}`);
     },
 
     /**
@@ -1093,7 +1093,7 @@ const binInfoModal = {
     },
 
     async show(cellId) {
-        console.log(`🔍 Opening bin info for: ${cellId}`);
+        console.log(` Opening bin info for: ${cellId}`);
 
         this.currentShelfId = shelfConfig.getShelfId(cellId);
         this.currentBinLetter = cellId.endsWith('-A') ? 'A' : cellId.endsWith('-B') ? 'B' : null;
@@ -1144,7 +1144,7 @@ const binInfoModal = {
                 const stockB = locB ? await api.getStockAtLocation(locB.pk) : [];
 
                 this.currentStock = [...stockA, ...stockB];
-                console.log(`📦 Single bin mode: Combined ${stockA.length} + ${stockB.length} batches`);
+                console.log(`Single bin mode: Combined ${stockA.length} + ${stockB.length} batches`);
             } else {
                 console.warn(`Location not found for cell: ${cellId}`);
                 document.getElementById('binProductSection').style.display = 'none';
@@ -1302,13 +1302,13 @@ const wall = {
     },
 
     render() {
-        console.log('🏗️ Wall.render() called');
+        console.log('Wall.render() called');
         dom.wallGrid.innerHTML = '';
         const activeZones = zoneConfig.getAllZones();
-        console.log('📦 Active zones:', activeZones);
+        console.log('Active zones:', activeZones);
 
         if (activeZones.length === 0) {
-            console.log('⚠️ No zones configured, showing empty state');
+            console.log('No zones configured, showing empty state');
             dom.wallGrid.innerHTML = '<div class="empty-state">No zones configured. Click "Add Zone" to get started.</div>';
             this.renderAddZoneButton();
             return;
@@ -1316,7 +1316,7 @@ const wall = {
 
         // Group zones by layout row for hybrid layout support
         const zonesByRow = this.groupZonesByRow(activeZones);
-        console.log('📊 Zones by row:', zonesByRow);
+        console.log('Zones by row:', zonesByRow);
 
         // Render each row of zones
         Object.keys(zonesByRow).sort().forEach(rowKey => {
@@ -1328,7 +1328,7 @@ const wall = {
 
             // Render each zone in this row
             rowZones.forEach(zone => {
-                console.log(`🎨 Rendering zone ${zone.name}`);
+                console.log(`Rendering zone ${zone.name}`);
                 const zoneContainer = this.renderZone(zone);
                 wallRow.appendChild(zoneContainer);
             });
@@ -1339,7 +1339,7 @@ const wall = {
         // Add "Add Zone" button
         console.log('➕ Adding "Add Zone" button');
         this.renderAddZoneButton();
-        console.log('✅ Wall.render() complete');
+        console.log('Wall.render() complete');
     },
 
     groupZonesByRow(zones) {
@@ -1368,8 +1368,8 @@ const wall = {
             <div class="zone-badge">ZONE ${zone.name}</div>
             <div class="zone-info">${zone.columns} cols × ${zone.levels} levels</div>
             <div class="zone-actions">
-                <button class="zone-action-btn" onclick="zoneManager.configureZone('${zone.name}')" title="Configure Zone">⚙️</button>
-                <button class="zone-action-btn zone-delete-btn" onclick="zoneManager.confirmDelete('${zone.name}')" title="Delete Zone">🗑️</button>
+                <button class="zone-action-btn" onclick="zoneManager.configureZone('${zone.name}')" title="Configure Zone"></button>
+                <button class="zone-action-btn zone-delete-btn" onclick="zoneManager.confirmDelete('${zone.name}')" title="Delete Zone"></button>
             </div>
         `;
         zoneContainer.appendChild(header);
@@ -1417,7 +1417,7 @@ const wall = {
     },
 
     renderAddZoneButton() {
-        console.log('🔘 renderAddZoneButton() called');
+        console.log('renderAddZoneButton() called');
         const addRow = document.createElement('div');
         addRow.className = 'wall-add-zone-row';
         addRow.innerHTML = `
@@ -1430,7 +1430,7 @@ const wall = {
             </button>
         `;
         dom.wallGrid.appendChild(addRow);
-        console.log('✅ Add Zone button appended to DOM');
+        console.log('Add Zone button appended to DOM');
     },
 
     createCell(cellId, isPowerSupply) {
@@ -1507,7 +1507,7 @@ const wall = {
         // Reload data for this cell
         this.loadCellData(cellId, isPowerSupply || shelfConfig.isSplitBins(cellId));
 
-        console.log(`🔄 Cell ${cellId} re-rendered`);
+        console.log(`Cell ${cellId} re-rendered`);
     },
 
     async showCellDetails(cellId, isPowerSupply) {
@@ -1570,7 +1570,7 @@ const wall = {
                     <div class="stock-item-meta">
                         <span class="stock-qty ${hasAllocation ? 'partial' : ''}">${available}/${qty}</span>
                         <span class="stock-price">€${(item.purchase_price || 0).toFixed(2)}</span>
-                        ${hasAllocation ? `<span class="allocation-badge" title="${allocated} reserved">🔒</span>` : ''}
+                        ${hasAllocation ? `<span class="allocation-badge" title="${allocated} reserved"></span>` : ''}
                     </div>
                 </div>
             `;
@@ -1613,14 +1613,14 @@ const wall = {
      * Load live stock data for all cells
      */
     async loadLiveData() {
-        console.log('📦 Loading live wall data (parallel)...');
+        console.log('Loading live wall data (parallel)...');
         const startTime = performance.now();
 
         // Get active zones from dynamic configuration
         const activeZones = zoneConfig.getAllZones();
 
         if (activeZones.length === 0) {
-            console.warn('⚠️ No active zones configured, skipping data load');
+            console.warn('No active zones configured, skipping data load');
             return;
         }
 
@@ -1659,7 +1659,7 @@ const wall = {
 
         const endTime = performance.now();
         const loadTime = ((endTime - startTime) / 1000).toFixed(2);
-        console.log(`✓ Wall data loaded in ${loadTime}s (${cellsToLoad.length} cells)`);
+        console.log(`Wall data loaded in ${loadTime}s (${cellsToLoad.length} cells)`);
     },
 
     /**
@@ -2088,7 +2088,7 @@ const handshake = {
             // If receiving to Bin A (e.g., A-1-3-A), check if there's existing stock
             // If yes, move it to corresponding Bin B (A-1-3-B) before adding new stock
             if (locName.endsWith('-A')) {
-                console.log(`🔄 FIFO rotation: Receiving to ${locName} (Bin A)`);
+                console.log(`FIFO rotation: Receiving to ${locName} (Bin A)`);
 
                 // Find corresponding Bin B
                 const binBName = locName.slice(0, -1) + 'B'; // Replace -A with -B
@@ -2102,20 +2102,20 @@ const handshake = {
                     const partStockInA = existingStockA.filter(item => item.part === partId);
 
                     if (partStockInA.length > 0) {
-                        console.log(`  📦 Found ${partStockInA.length} existing batch(es) in Bin A, moving to Bin B...`);
+                        console.log(`  Found ${partStockInA.length} existing batch(es) in Bin A, moving to Bin B...`);
 
                         // Move all existing Bin A stock to Bin B
                         for (const stockItem of partStockInA) {
                             await this.moveStock(stockItem.pk, binBId, stockItem.quantity);
-                            console.log(`  ✓ Moved ${stockItem.quantity} units (€${stockItem.purchase_price}) to ${binBName}`);
+                            console.log(`  Moved ${stockItem.quantity} units (€${stockItem.purchase_price}) to ${binBName}`);
                         }
 
                         toast.show(`Rotated old batch to Bin B`, 'info');
                     } else {
-                        console.log(`  ℹ️ No existing stock in Bin A, direct placement`);
+                        console.log(`  No existing stock in Bin A, direct placement`);
                     }
                 } else {
-                    console.warn(`  ⚠️ Bin B not found for rotation (${binBName})`);
+                    console.warn(`  Bin B not found for rotation (${binBName})`);
                 }
             }
 
@@ -2222,7 +2222,7 @@ const handshake = {
                     return new Date(a.stocktake_date || 0) - new Date(b.stocktake_date || 0);
                 });
 
-                console.log('🔄 FIFO Picking Order:', sortedStock.map(s => `${s.location_detail?.name} (${s.quantity} @ €${s.purchase_price})`));
+                console.log('FIFO Picking Order:', sortedStock.map(s => `${s.location_detail?.name} (${s.quantity} @ €${s.purchase_price})`));
 
                 for (const item of sortedStock) {
                     if (remaining <= 0) break;
@@ -2237,7 +2237,7 @@ const handshake = {
                     });
                     remaining -= toConsume;
 
-                    console.log(`  ✓ Consumed ${toConsume} from ${item.location_detail?.name} @ €${item.purchase_price}`);
+                    console.log(`  Consumed ${toConsume} from ${item.location_detail?.name} @ €${item.purchase_price}`);
                 }
             }
 
@@ -2480,7 +2480,7 @@ const catalog = {
         if (parts.length === 0) {
             dom.catalogGrid.innerHTML = `
                 <div class="catalog-empty">
-                    <span>${searchQuery ? '🔍' : '📦'}</span>
+                    <span>${searchQuery ? '' : ''}</span>
                     <p>${searchQuery ? `No parts found matching "${searchQuery}"` : 'No parts found.'}</p>
                 </div>
             `;
@@ -2718,7 +2718,7 @@ const batchDetail = {
             // Fetch full stock details with nested part and location info
             const stock = await api.request(`/stock/${stockId}/?part_detail=true&location_detail=true`);
             this.currentStock = stock;
-            console.log('📦 batchDetail loaded stock:', stock);
+            console.log('batchDetail loaded stock:', stock);
 
             // Get part details
             const part = state.parts.get(stock.part) || await api.request(`/part/${stock.part}/`);
@@ -2815,14 +2815,14 @@ const batchDetail = {
     },
 
     openEdit() {
-        console.log('🔧 batchDetail.openEdit() called, currentStock:', this.currentStock);
+        console.log('batchDetail.openEdit() called, currentStock:', this.currentStock);
         if (this.currentStock) {
             // Pass the full stock object, not just the ID
             const stockToEdit = this.currentStock;
             this.close();
             batchEditor.show(stockToEdit);
         } else {
-            console.error('❌ openEdit: currentStock is null');
+            console.error('openEdit: currentStock is null');
             toast.show('Error: No batch selected', 'error');
         }
     },
@@ -2890,10 +2890,10 @@ const batchEditor = {
     },
 
     show(stockItem) {
-        console.log('📝 batchEditor.show() called with:', stockItem);
+        console.log('batchEditor.show() called with:', stockItem);
 
         if (!stockItem) {
-            console.error('❌ batchEditor.show() received null/undefined stockItem');
+            console.error('batchEditor.show() received null/undefined stockItem');
             toast.show('Error: No batch data', 'error');
             return;
         }
@@ -2902,7 +2902,7 @@ const batchEditor = {
         const modal = document.getElementById('batchEditModal');
 
         if (!modal) {
-            console.error('❌ batchEditModal element not found in DOM');
+            console.error('batchEditModal element not found in DOM');
             toast.show('Error: Edit modal not found', 'error');
             return;
         }
@@ -2914,11 +2914,11 @@ const batchEditor = {
 
             if (qtyInput) {
                 qtyInput.value = stockItem.quantity ?? 0;
-                console.log('📝 Set quantity to:', stockItem.quantity);
+                console.log('Set quantity to:', stockItem.quantity);
             }
             if (priceInput) {
                 priceInput.value = stockItem.purchase_price ?? 0;
-                console.log('📝 Set price to:', stockItem.purchase_price);
+                console.log('Set price to:', stockItem.purchase_price);
             }
 
             // Show current location in readonly info
@@ -2966,7 +2966,7 @@ const batchEditor = {
             }
 
             modal.classList.add('active');
-            console.log('✅ batchEditModal opened with values:', {
+            console.log('batchEditModal opened with values:', {
                 qty: qtyInput?.value,
                 price: priceInput?.value,
                 location: currentLocName,
@@ -2974,7 +2974,7 @@ const batchEditor = {
             });
             qtyInput?.focus();
         } catch (e) {
-            console.error('❌ Error in batchEditor.show():', e);
+            console.error('Error in batchEditor.show():', e);
             toast.show('Error opening edit modal', 'error');
         }
     },
@@ -2988,7 +2988,7 @@ const batchEditor = {
         e.preventDefault();
 
         if (!this.currentStock) {
-            console.error('❌ submit: currentStock is null');
+            console.error('submit: currentStock is null');
             toast.show('Error: No batch data', 'error');
             return;
         }
@@ -2996,7 +2996,7 @@ const batchEditor = {
         // Get stock ID - InvenTree uses 'pk' as the primary key
         const stockId = this.currentStock.pk || this.currentStock.id;
         if (!stockId) {
-            console.error('❌ submit: No stock ID found', this.currentStock);
+            console.error('submit: No stock ID found', this.currentStock);
             toast.show('Error: Invalid batch data', 'error');
             return;
         }
@@ -3005,7 +3005,7 @@ const batchEditor = {
         const price = parseFloat(document.getElementById('batchEditPrice').value);
         const newLocationId = document.getElementById('batchEditLocationSelect').value;
 
-        console.log('📝 batchEditor.submit():', { stockId, qty, price, newLocationId });
+        console.log('batchEditor.submit():', { stockId, qty, price, newLocationId });
 
         // Manual validation (since form has novalidate)
         if (isNaN(qty) || qty < 0) {
@@ -3022,7 +3022,7 @@ const batchEditor = {
             const locationChanged = newLocationId && parseInt(newLocationId) !== this.currentStock.location;
 
             if (locationChanged) {
-                console.log(`📦 Location change detected: moving stock to new location`);
+                console.log(`Location change detected: moving stock to new location`);
 
                 // Transfer stock to new location
                 await handshake.moveStock(stockId, parseInt(newLocationId), qty);
@@ -3030,7 +3030,7 @@ const batchEditor = {
             }
 
             // Update quantity and price
-            console.log(`📝 Updating stock ${stockId}: qty=${qty}, price=${price}`);
+            console.log(`Updating stock ${stockId}: qty=${qty}, price=${price}`);
             await api.request(`/stock/${stockId}/`, {
                 method: 'PATCH',
                 body: JSON.stringify({
@@ -3053,8 +3053,8 @@ const batchEditor = {
             wall.loadLiveData();
 
         } catch (e) {
-            console.error('❌ Batch update error:', e);
-            console.error('❌ Stock object was:', this.currentStock);
+            console.error('Batch update error:', e);
+            console.error('Stock object was:', this.currentStock);
             toast.show(`Failed to update batch: ${e.message}`, 'error');
         }
     },
@@ -3075,7 +3075,7 @@ const batchEditor = {
 
         const qty = this.currentStock.quantity || 0;
         const confirmed = confirm(
-            `⚠️ DELETE BATCH\n\n` +
+            `DELETE BATCH\n\n` +
             `Are you sure you want to permanently delete this batch?\n\n` +
             `Part: ${partName}\n` +
             `Quantity: ${qty} units\n\n` +
@@ -3097,7 +3097,7 @@ const batchEditor = {
         }
 
         try {
-            console.log(`🗑️ Deleting stock ${stockId}...`);
+            console.log(`Deleting stock ${stockId}...`);
 
             await api.request(`/stock/${stockId}/`, {
                 method: 'DELETE'
@@ -3116,7 +3116,7 @@ const batchEditor = {
             wall.loadLiveData();
 
         } catch (e) {
-            console.error('❌ Batch delete error:', e);
+            console.error('Batch delete error:', e);
             toast.show(`Failed to delete batch: ${e.message}`, 'error');
         }
     }
@@ -3287,7 +3287,7 @@ const partManager = {
             select.appendChild(opt);
         });
 
-        console.log(`📦 Loaded ${bins.length} bins into location dropdown`);
+        console.log(`Loaded ${bins.length} bins into location dropdown`);
     },
 
     /**
@@ -3539,12 +3539,12 @@ const notifications = {
 
     getIcon(type) {
         const icons = {
-            'info': 'ℹ️',
-            'success': '✓',
+            'info': '',
+            'success': '',
             'error': '✕',
-            'warning': '⚠️'
+            'warning': ''
         };
-        return icons[type] || 'ℹ️';
+        return icons[type] || '';
     },
 
     dismiss(id) {
@@ -3640,7 +3640,7 @@ const alerts = {
         this.updateWallCells();
 
         if (this.alertCount > 0) {
-            console.log(`⚠️ ${this.alertCount} parts below minimum stock`);
+            console.log(`${this.alertCount} parts below minimum stock`);
         }
 
         return this.lowStockItems;
@@ -3687,7 +3687,7 @@ const alerts = {
         // This would update Wall cells when we have live stock data
         // For now, just log the warning state
         this.lowStockItems.forEach(item => {
-            console.log(`📦 Low stock: ${item.name} (${item.available}/${item.minimum})`);
+            console.log(`Low stock: ${item.name} (${item.available}/${item.minimum})`);
         });
     }
 };
@@ -3715,7 +3715,7 @@ const history = {
     loading: false,
 
     async init() {
-        console.log('📜 Initializing History view...');
+        console.log('Initializing History view...');
         await this.loadMovements();
         this.render();
     },
@@ -3736,7 +3736,7 @@ const history = {
             const response = await api.request(`/stock/track/?${params}`);
             this.movements = response.results || response || [];
 
-            console.log(`📦 Loaded ${this.movements.length} stock movements`);
+            console.log(`Loaded ${this.movements.length} stock movements`);
         } catch (e) {
             console.error('Failed to load stock movements:', e);
             notifications.show('Failed to load history', 'error');
@@ -3765,7 +3765,7 @@ const history = {
         if (this.movements.length === 0) {
             timeline.innerHTML = `
                 <div class="history-empty">
-                    <div class="history-empty-icon">📦</div>
+                    <div class="history-empty-icon"></div>
                     <div class="history-empty-text">No stock movements found</div>
                     <div class="history-empty-hint">Stock movements will appear here as you add, remove, or transfer inventory</div>
                 </div>
@@ -3819,12 +3819,12 @@ const history = {
 
     getIcon(type) {
         const icons = {
-            'add': '📥',
-            'remove': '📤',
-            'move': '🔄',
-            'update': '✏️'
+            'add': '',
+            'remove': '',
+            'move': '',
+            'update': ''
         };
-        return icons[type] || '📦';
+        return icons[type] || '';
     },
 
     getTypeLabel(type) {
@@ -3987,7 +3987,7 @@ async function checkConnection() {
     try {
         await api.request('/');
         state.isConnected = true;
-        console.log('✓ API Connected');
+        console.log('API Connected');
     } catch {
         state.isConnected = false;
         console.warn('✗ API Offline');
@@ -4010,7 +4010,7 @@ document.addEventListener('keydown', (e) => {
 // Initialize
 // =============================================================================
 async function init() {
-    console.log('🚀 Omiximo Inventory OS starting...');
+    console.log('Omiximo Inventory OS starting...');
 
     // Clock
     updateClock();
@@ -4140,7 +4140,7 @@ const auth = {
     },
 
     async onAuthSuccess() {
-        console.log('✓ Authenticated');
+        console.log('Authenticated');
 
         // Hide login modal
         document.getElementById('loginModal').classList.remove('active');
@@ -4188,7 +4188,7 @@ const auth = {
         }, CONFIG.REFRESH_INTERVAL);
 
         toast.show('Welcome back!');
-        console.log('✓ Ready');
+        console.log('Ready');
     },
 
     logout() {

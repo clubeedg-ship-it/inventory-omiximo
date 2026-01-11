@@ -131,7 +131,7 @@ const labels = {
                     </div>
                     <div class="label-actions">
                         <button class="btn-print" onclick="labels.executePrint()">
-                            🖨️ Print Labels
+                            Print Labels
                         </button>
                     </div>
                 </div>
