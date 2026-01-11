@@ -1403,6 +1403,75 @@ const handshake = {
 };
 
 // =============================================================================
+// Category Manager (Create categories on demand)
+// =============================================================================
+const categoryManager = {
+    init() {
+        const modal = document.getElementById('categoryModal');
+        const closeBtn = document.getElementById('categoryModalClose');
+        const cancelBtn = document.getElementById('categoryCancel');
+        const form = document.getElementById('categoryForm');
+
+        if (closeBtn) closeBtn.addEventListener('click', () => this.hide());
+        if (cancelBtn) cancelBtn.addEventListener('click', () => this.hide());
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) this.hide();
+            });
+        }
+        if (form) form.addEventListener('submit', (e) => this.submit(e));
+    },
+
+    show() {
+        const modal = document.getElementById('categoryModal');
+        document.getElementById('categoryName').value = '';
+        document.getElementById('categoryDescription').value = '';
+        modal.classList.add('active');
+        document.getElementById('categoryName').focus();
+    },
+
+    hide() {
+        document.getElementById('categoryModal').classList.remove('active');
+    },
+
+    async submit(e) {
+        e.preventDefault();
+
+        const name = document.getElementById('categoryName').value.trim();
+        const description = document.getElementById('categoryDescription').value.trim();
+
+        if (!name) {
+            toast.show('Please enter a category name', 'error');
+            return;
+        }
+
+        try {
+            await api.createCategory({ name, description });
+            toast.show(`Category "${name}" created!`, 'success');
+            this.hide();
+
+            // Refresh the category filter dropdown
+            await catalog.loadCategories();
+
+            // Also refresh the part modal's category dropdown if it exists
+            const partCatSelect = document.getElementById('partCategory');
+            if (partCatSelect) {
+                partCatSelect.innerHTML = '<option value="">No Category</option>';
+                catalog.categories.forEach(cat => {
+                    const opt = document.createElement('option');
+                    opt.value = cat.pk;
+                    opt.textContent = cat.name;
+                    partCatSelect.appendChild(opt);
+                });
+            }
+        } catch (err) {
+            console.error('Create category error:', err);
+            toast.show('Failed to create category', 'error');
+        }
+    }
+};
+
+// =============================================================================
 // Catalog Module (Enhanced with CRUD)
 // =============================================================================
 const catalog = {
@@ -1434,6 +1503,12 @@ const catalog = {
         const addBtn = document.getElementById('btnAddPart');
         if (addBtn) {
             addBtn.addEventListener('click', () => partManager.showCreate());
+        }
+
+        // New Category button
+        const newCatBtn = document.getElementById('btnNewCategory');
+        if (newCatBtn) {
+            newCatBtn.addEventListener('click', () => categoryManager.show());
         }
 
         // Load categories
@@ -2502,6 +2577,7 @@ async function init() {
     handshake.init();
     partManager.init();
     batchEditor.init();
+    categoryManager.init();
 
     // Scanner
     scanner.init();

@@ -997,6 +997,10 @@ body {
     transform: scale(1);
 }
 
+.modal.modal-small {
+    max-width: 340px;
+}
+
 .modal-close {
     position: absolute;
     top: var(--space-md);
@@ -1131,6 +1135,7 @@ body {
 .form-group select:focus {
     outline: none;
     background: var(--accent-light);
+    color: #fff;
 }
 
 .form-group input::placeholder {
@@ -1482,7 +1487,6 @@ body {
 .product-row.expanded .menu-arrow {
     transform: rotate(90deg);
 }
-}
 
 .component-picker {
     margin-bottom: var(--space-md);
@@ -1682,6 +1686,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: var(--space-md);
+    margin-top: var(--space-xl);
 }
 
 .empty-transactions {
@@ -3268,7 +3273,9 @@ body.not-authenticated .toast {
 [data-theme="light"] .financial-summary {
     background: rgba(0, 80, 102, 0.04);
     border: 1px solid rgba(0, 80, 102, 0.1);
-}/* Pagination & Loading */
+}
+
+/* Pagination & Loading */
 .load-more-container {
     grid-column: 1 / -1;
     display: flex;
