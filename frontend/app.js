@@ -623,6 +623,22 @@ const zoneConfig = {
 
     init() {
         console.log('🚀 zoneConfig.init() called');
+
+        // Migration: Clear incompatible old zone data from pre-Phase 5
+        const ZONE_VERSION = '2'; // Phase 5 localStorage format
+        const storedVersion = localStorage.getItem('omiximo_zone_version');
+
+        if (storedVersion !== ZONE_VERSION) {
+            console.log('🔄 Migrating zone config to v2... (clearing old incompatible data)');
+            localStorage.removeItem('omiximo_zones');
+            localStorage.setItem('omiximo_zone_version', ZONE_VERSION);
+            // After migration, force reload of defaults
+            state.zones = CONFIG.DEFAULT_ZONES;
+            this.save();
+            console.log('✅ Migration complete - defaults restored:', state.zones);
+            return; // Skip load() since we just set defaults
+        }
+
         this.load();
         console.log(`📊 After load, state.zones =`, state.zones);
         if (state.zones.length === 0) {
