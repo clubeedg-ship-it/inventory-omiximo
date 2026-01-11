@@ -914,6 +914,370 @@ const zoneManager = {
 };
 
 // =============================================================================
+// Shelf Configuration - Per-Shelf Settings for Bin A/B FIFO Logic
+// =============================================================================
+const shelfConfig = {
+    STORAGE_KEY: 'omiximo_shelf_config',
+    config: {},
+
+    init() {
+        console.log('🗄️ shelfConfig.init() called');
+        this.load();
+        console.log(`📦 Shelf Config: Loaded ${Object.keys(this.config).length} shelf configurations`);
+    },
+
+    load() {
+        try {
+            const stored = localStorage.getItem(this.STORAGE_KEY);
+            if (stored) {
+                this.config = JSON.parse(stored);
+            }
+        } catch (e) {
+            console.error('Failed to load shelf config:', e);
+            this.config = {};
+        }
+    },
+
+    save() {
+        try {
+            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.config));
+            console.log('💾 Shelf config saved');
+        } catch (e) {
+            console.error('Failed to save shelf config:', e);
+        }
+    },
+
+    /**
+     * Extract shelf ID from cell ID (removes bin suffix)
+     * 'A-1-3-A' → 'A-1-3'
+     * 'B-4-7' → 'B-4-7' (already a shelf ID for single bin shelves)
+     */
+    getShelfId(cellId) {
+        const parts = cellId.split('-');
+        // Cell IDs have 4 parts: Zone-Col-Level-Bin (e.g., A-1-3-A)
+        // Shelf IDs have 3 parts: Zone-Col-Level (e.g., A-1-3)
+        if (parts.length === 4) {
+            return parts.slice(0, 3).join('-');
+        }
+        return cellId; // Already a shelf ID
+    },
+
+    /**
+     * Get configuration for a specific shelf
+     */
+    getShelfConfig(shelfId) {
+        return this.config[shelfId] || {
+            splitFifo: false,      // When true: A & B hold different products, no auto-transfer
+            splitBins: false,       // When true: No A/B division, single bin for entire shelf
+            capacities: {}          // Per-product capacities: { partId: { binA: qty, binB: qty } }
+        };
+    },
+
+    /**
+     * Update configuration for a specific shelf
+     */
+    setShelfConfig(shelfId, updates) {
+        if (!this.config[shelfId]) {
+            this.config[shelfId] = {
+                splitFifo: false,
+                splitBins: false,
+                capacities: {}
+            };
+        }
+        Object.assign(this.config[shelfId], updates);
+        this.save();
+    },
+
+    /**
+     * Get bin capacity for a specific part in a specific bin
+     * @returns {number|null} Capacity or null if not defined
+     */
+    getBinCapacity(shelfId, partId, binLetter) {
+        const config = this.getShelfConfig(shelfId);
+        const partCaps = config.capacities[partId];
+        if (!partCaps) return null; // Not defined yet
+        return binLetter === 'A' ? partCaps.binA : partCaps.binB;
+    },
+
+    /**
+     * Set bin capacity for a specific part (called on first receive)
+     */
+    setBinCapacity(shelfId, partId, capacity) {
+        const config = this.getShelfConfig(shelfId);
+        if (!config.capacities[partId]) {
+            config.capacities[partId] = { binA: null, binB: null };
+        }
+        // Set same capacity for both bins
+        config.capacities[partId].binA = capacity;
+        config.capacities[partId].binB = capacity;
+        this.setShelfConfig(shelfId, { capacities: config.capacities });
+        console.log(`📐 Set capacity for part ${partId} in ${shelfId}: ${capacity} per bin`);
+    },
+
+    /**
+     * Check if shelf has Split FIFO mode enabled
+     */
+    isSplitFifo(shelfId) {
+        return this.getShelfConfig(shelfId).splitFifo;
+    },
+
+    /**
+     * Check if shelf has Single Bin mode (no A/B separation)
+     */
+    isSplitBins(shelfId) {
+        return this.getShelfConfig(shelfId).splitBins;
+    },
+
+    /**
+     * Toggle Split FIFO mode for a shelf
+     */
+    toggleSplitFifo(shelfId, enabled) {
+        this.setShelfConfig(shelfId, { splitFifo: enabled });
+        console.log(`🔀 Split FIFO ${enabled ? 'enabled' : 'disabled'} for ${shelfId}`);
+    },
+
+    /**
+     * Toggle Single Bin mode for a shelf
+     */
+    toggleSplitBins(shelfId, enabled) {
+        this.setShelfConfig(shelfId, { splitBins: enabled });
+        console.log(`📦 Single Bin mode ${enabled ? 'enabled' : 'disabled'} for ${shelfId}`);
+    },
+
+    /**
+     * Get all unique shelves from locations
+     */
+    getAllShelves() {
+        const shelves = new Set();
+        for (const [name] of state.locations) {
+            const shelfId = this.getShelfId(name);
+            if (shelfId && shelfId.split('-').length >= 3) {
+                shelves.add(shelfId);
+            }
+        }
+        return [...shelves].sort();
+    }
+};
+
+// =============================================================================
+// Bin Info Modal - Shows bin details and per-shelf configuration
+// =============================================================================
+const binInfoModal = {
+    currentShelfId: null,
+    currentBinLetter: null,
+    currentStock: [],
+
+    init() {
+        const modal = document.getElementById('binInfoModal');
+        const closeBtn = document.getElementById('binInfoClose');
+
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => this.close());
+        }
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) this.close();
+            });
+        }
+
+        // Toggle event listeners
+        const splitFifoCheckbox = document.getElementById('binConfigSplitFifo');
+        const splitBinsCheckbox = document.getElementById('binConfigSplitBins');
+
+        if (splitFifoCheckbox) {
+            splitFifoCheckbox.addEventListener('change', (e) => this.onSplitFifoChange(e.target.checked));
+        }
+        if (splitBinsCheckbox) {
+            splitBinsCheckbox.addEventListener('change', (e) => this.onSplitBinsChange(e.target.checked));
+        }
+    },
+
+    async show(cellId) {
+        console.log(`🔍 Opening bin info for: ${cellId}`);
+
+        this.currentShelfId = shelfConfig.getShelfId(cellId);
+        this.currentBinLetter = cellId.endsWith('-A') ? 'A' : cellId.endsWith('-B') ? 'B' : null;
+
+        const config = shelfConfig.getShelfConfig(this.currentShelfId);
+
+        // Parse cell ID components (e.g., "A-1-3-A" → zone=A, col=1, level=3, bin=A)
+        const idParts = cellId.split('-');
+        const zone = idParts[0] || '?';
+        const col = idParts[1] || '?';
+        const level = idParts[2] || '?';
+        const binLetter = idParts[3] || '';
+
+        // Update bin badge
+        const badgeZone = document.querySelector('.bin-badge-zone');
+        const badgeLocation = document.querySelector('.bin-badge-location');
+        const badgeBin = document.querySelector('.bin-badge-bin');
+        if (badgeZone) badgeZone.textContent = zone;
+        if (badgeLocation) badgeLocation.textContent = `${col}-${level}`;
+        if (badgeBin) {
+            badgeBin.textContent = binLetter ? `Bin ${binLetter}` : 'Shelf';
+            badgeBin.style.display = binLetter ? 'block' : 'none';
+        }
+
+        // Set modal title and subtitle
+        document.getElementById('binInfoTitle').textContent = `Bin ${cellId}`;
+        document.getElementById('binInfoShelfId').textContent = `Zone ${zone} · Column ${col} · Level ${level}`;
+
+        // Get location ID for this cell
+        let location = state.locations.get(cellId);
+
+        // For single bin mode on regular shelves, the location might not exist directly
+        // (e.g., "A-1-3" doesn't exist, only "A-1-3-A" and "A-1-3-B" do)
+        // In this case, we need to combine stock from both A and B bins
+        const isSingleBinMode = !this.currentBinLetter && shelfConfig.isSplitBins(this.currentShelfId);
+
+        // Load stock for this cell
+        try {
+            if (location) {
+                // Direct location found (power supply or native single bin)
+                this.currentStock = await api.getStockAtLocation(location.pk);
+            } else if (isSingleBinMode) {
+                // Single bin mode on regular shelf - combine stock from A and B
+                const locA = state.locations.get(`${cellId}-A`);
+                const locB = state.locations.get(`${cellId}-B`);
+
+                const stockA = locA ? await api.getStockAtLocation(locA.pk) : [];
+                const stockB = locB ? await api.getStockAtLocation(locB.pk) : [];
+
+                this.currentStock = [...stockA, ...stockB];
+                console.log(`📦 Single bin mode: Combined ${stockA.length} + ${stockB.length} batches`);
+            } else {
+                console.warn(`Location not found for cell: ${cellId}`);
+                document.getElementById('binProductSection').style.display = 'none';
+                document.getElementById('binEmptySection').style.display = 'flex';
+                document.getElementById('binInfoModal').classList.add('active');
+                return;
+            }
+        } catch (e) {
+            console.error('Failed to load stock:', e);
+            this.currentStock = [];
+        }
+
+        // Display stock info
+        if (this.currentStock.length === 0) {
+            document.getElementById('binProductSection').style.display = 'none';
+            document.getElementById('binEmptySection').style.display = 'flex';
+        } else {
+            document.getElementById('binEmptySection').style.display = 'none';
+            document.getElementById('binProductSection').style.display = 'flex';
+
+            // Get first stock item (could be multiple batches of same product)
+            const firstStock = this.currentStock[0];
+            const part = state.parts.get(firstStock.part);
+            const totalQty = this.currentStock.reduce((sum, s) => sum + s.quantity, 0);
+            const totalValue = this.currentStock.reduce((sum, s) => sum + (s.quantity * (s.purchase_price || 0)), 0);
+            const capacity = shelfConfig.getBinCapacity(this.currentShelfId, firstStock.part, this.currentBinLetter);
+
+            // Update product name
+            document.getElementById('binProductName').textContent = part?.name || 'Unknown Part';
+
+            // Update stock metrics (separate elements)
+            document.getElementById('binProductQty').textContent = totalQty;
+            document.getElementById('binProductCapacity').textContent = capacity || '∞';
+
+            // Update progress bar
+            const fillEl = document.getElementById('binStockFill');
+            if (fillEl && capacity) {
+                const fillPercent = Math.min((totalQty / capacity) * 100, 100);
+                fillEl.style.width = `${fillPercent}%`;
+                if (fillPercent < 20) {
+                    fillEl.classList.add('low');
+                } else {
+                    fillEl.classList.remove('low');
+                }
+            } else if (fillEl) {
+                fillEl.style.width = '100%';
+                fillEl.classList.remove('low');
+            }
+
+            // Update value
+            document.getElementById('binProductValue').textContent = `€${totalValue.toFixed(2)} total value`;
+        }
+
+        // Set toggle states
+        document.getElementById('binConfigSplitFifo').checked = config.splitFifo || false;
+        document.getElementById('binConfigSplitBins').checked = config.splitBins || false;
+
+        // Show modal
+        document.getElementById('binInfoModal').classList.add('active');
+    },
+
+    close() {
+        document.getElementById('binInfoModal').classList.remove('active');
+        this.currentShelfId = null;
+        this.currentBinLetter = null;
+        this.currentStock = [];
+    },
+
+    onSplitFifoChange(enabled) {
+        if (!this.currentShelfId) return;
+        shelfConfig.toggleSplitFifo(this.currentShelfId, enabled);
+        notifications.show(
+            enabled
+                ? 'Split FIFO enabled - Bins A and B are now independent'
+                : 'Split FIFO disabled - Normal FIFO rotation restored',
+            'info'
+        );
+    },
+
+    onSplitBinsChange(enabled) {
+        if (!this.currentShelfId) return;
+        shelfConfig.toggleSplitBins(this.currentShelfId, enabled);
+
+        // Re-render the cell to update visual appearance
+        wall.rerenderCell(this.currentShelfId);
+
+        // Close modal since the cell structure changed
+        this.close();
+
+        notifications.show(
+            enabled
+                ? 'Single Bin mode enabled - Cell merged'
+                : 'A/B separation restored - Cell split',
+            'success'
+        );
+    },
+
+    async viewBatches() {
+        if (this.currentStock.length === 0) {
+            toast.show('No batches in this bin', 'info');
+            return;
+        }
+        // Open first batch in batch detail modal
+        if (typeof batchDetail !== 'undefined') {
+            batchDetail.show(this.currentStock[0].pk);
+            this.close();
+        }
+    },
+
+    async editCapacity() {
+        if (this.currentStock.length === 0) {
+            toast.show('Add stock first to set capacity', 'info');
+            return;
+        }
+
+        const partId = this.currentStock[0].part;
+        const currentCapacity = shelfConfig.getBinCapacity(this.currentShelfId, partId, this.currentBinLetter);
+
+        const newCapacity = prompt(
+            `Enter bin capacity for this product:\n(Current: ${currentCapacity || 'not set'})`,
+            currentCapacity || ''
+        );
+
+        if (newCapacity && !isNaN(parseInt(newCapacity))) {
+            shelfConfig.setBinCapacity(this.currentShelfId, partId, parseInt(newCapacity));
+            toast.show(`Capacity set to ${newCapacity} units`, 'success');
+            // Refresh display
+            document.getElementById('binProductCapacity').textContent = newCapacity;
+        }
+    }
+};
+
+// =============================================================================
 // Wall Grid Renderer
 // =============================================================================
 const wall = {
@@ -1058,30 +1422,76 @@ const wall = {
         cell.className = 'cell empty';
         cell.dataset.cellId = cellId;
 
-        if (isPowerSupply) {
+        // Check if this shelf is configured as Single Bin mode (via toggle)
+        const isSingleBin = isPowerSupply || shelfConfig.isSplitBins(cellId);
+
+        if (isSingleBin) {
             cell.classList.add('solid');
-            // Single bin for power supplies
+            // Single bin mode - no A/B division
             const bin = document.createElement('div');
             bin.className = 'bin-half';
             bin.innerHTML = '<span class="qty">-</span>';
+            bin.addEventListener('click', (e) => {
+                e.stopPropagation();
+                binInfoModal.show(`${cellId}`);  // No -A/-B suffix for solid bins
+            });
             cell.appendChild(bin);
         } else {
             // Split bins for standard cells
             const binA = document.createElement('div');
             binA.className = 'bin-half bin-a';
             binA.innerHTML = '<span class="label">A</span><span class="qty">-</span>';
+            binA.addEventListener('click', (e) => {
+                e.stopPropagation();
+                binInfoModal.show(`${cellId}-A`);
+            });
 
             const binB = document.createElement('div');
             binB.className = 'bin-half bin-b';
             binB.innerHTML = '<span class="label">B</span><span class="qty">-</span>';
+            binB.addEventListener('click', (e) => {
+                e.stopPropagation();
+                binInfoModal.show(`${cellId}-B`);
+            });
 
             cell.appendChild(binA);
             cell.appendChild(binB);
         }
 
-        cell.addEventListener('click', () => this.showCellDetails(cellId, isPowerSupply));
+        cell.addEventListener('click', () => this.showCellDetails(cellId, isSingleBin));
 
         return cell;
+    },
+
+    /**
+     * Re-render a specific cell (used when configuration changes)
+     */
+    rerenderCell(cellId) {
+        const existingCell = document.querySelector(`[data-cell-id="${cellId}"]`);
+        if (!existingCell) {
+            console.warn(`Cell not found for re-render: ${cellId}`);
+            return;
+        }
+
+        // Determine if it's a power supply column
+        const parts = cellId.split('-');
+        const isPowerSupply = `${parts[0]}-${parts[1]}` === CONFIG.POWER_SUPPLY_COLUMN;
+
+        // Create new cell with updated configuration
+        const newCell = this.createCell(cellId, isPowerSupply);
+
+        // Copy over any status classes (like 'stocked', 'low', etc.)
+        if (existingCell.classList.contains('stocked')) newCell.classList.add('stocked');
+        if (existingCell.classList.contains('low')) newCell.classList.add('low');
+        if (existingCell.classList.contains('loading')) newCell.classList.add('loading');
+
+        // Replace the old cell with the new one
+        existingCell.parentNode.replaceChild(newCell, existingCell);
+
+        // Reload data for this cell
+        this.loadCellData(cellId, isPowerSupply || shelfConfig.isSplitBins(cellId));
+
+        console.log(`🔄 Cell ${cellId} re-rendered`);
     },
 
     async showCellDetails(cellId, isPowerSupply) {
@@ -3460,11 +3870,15 @@ async function init() {
     // Zone Configuration
     zoneConfig.init();
 
+    // Shelf Configuration (Bin A/B FIFO settings)
+    shelfConfig.init();
+
     // Wall
     wall.init();
 
     // Modals
     binModal.init();
+    binInfoModal.init();
     handshake.init();
     partManager.init();
     batchEditor.init();

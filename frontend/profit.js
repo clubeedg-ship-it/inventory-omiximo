@@ -6,6 +6,16 @@
  */
 
 // =============================================================================
+// Profit Configuration
+// =============================================================================
+const PROFIT_CONFIG = {
+    COMMISSION_RATE: 0.062,     // 6.2% marketplace commission
+    STATIC_OVERHEAD: 95.00,     // €95 fixed cost per sale
+    COMMISSION_LABEL: 'Commission (6.2%)',
+    OVERHEAD_LABEL: 'Fixed Overhead'
+};
+
+// =============================================================================
 // Profit State
 // =============================================================================
 const profitState = {
@@ -231,19 +241,57 @@ const recordSale = {
     },
 
     updateCostDisplay() {
-        const totalCost = profitState.components.reduce((sum, c) => sum + c.fifoCost, 0);
-        document.getElementById('saleTotalCost').textContent = `€${totalCost.toFixed(2)}`;
-        this.updateMarginPreview();
+        this.updateCostBreakdown();
+    },
+
+    updateCostBreakdown() {
+        // Get current values
+        const salePrice = parseFloat(document.getElementById('salePrice').value) || 0;
+        const componentsCost = this.calculateComponentsCost();
+
+        // Calculate automatic costs
+        const commissionCost = salePrice * PROFIT_CONFIG.COMMISSION_RATE;
+        const staticCost = PROFIT_CONFIG.STATIC_OVERHEAD;
+        const totalCost = componentsCost + commissionCost + staticCost;
+        const margin = salePrice - totalCost;
+
+        // Update breakdown display elements
+        const componentsCostEl = document.getElementById('componentsCostDisplay');
+        const commissionCostEl = document.getElementById('commissionCostDisplay');
+        const totalCostEl = document.getElementById('totalCostDisplay');
+        const salePriceEl = document.getElementById('salePriceDisplay');
+        const marginEl = document.getElementById('marginDisplay');
+
+        if (componentsCostEl) componentsCostEl.textContent = `€${componentsCost.toFixed(2)}`;
+        if (commissionCostEl) commissionCostEl.textContent = `€${commissionCost.toFixed(2)}`;
+        if (totalCostEl) totalCostEl.textContent = `€${totalCost.toFixed(2)}`;
+        if (salePriceEl) salePriceEl.textContent = `€${salePrice.toFixed(2)}`;
+
+        // Update margin with color coding
+        if (marginEl) {
+            marginEl.textContent = `€${margin.toFixed(2)}`;
+            marginEl.style.color = margin >= 0 ?
+                'var(--signal-healthy-text)' :
+                'var(--signal-critical-text)';
+        }
+
+        // Also update old elements for backward compatibility
+        const oldTotalCost = document.getElementById('saleTotalCost');
+        const oldMarginPreview = document.getElementById('saleMarginPreview');
+        if (oldTotalCost) oldTotalCost.textContent = `€${totalCost.toFixed(2)}`;
+        if (oldMarginPreview) {
+            oldMarginPreview.textContent = `${margin >= 0 ? '+' : ''}€${margin.toFixed(2)}`;
+            oldMarginPreview.className = `value ${margin >= 0 ? 'positive' : 'negative'}`;
+        }
     },
 
     updateMarginPreview() {
-        const salePrice = parseFloat(document.getElementById('salePrice').value) || 0;
-        const totalCost = profitState.components.reduce((sum, c) => sum + c.fifoCost, 0);
-        const margin = salePrice - totalCost;
+        // Redirect to new cost breakdown method
+        this.updateCostBreakdown();
+    },
 
-        const marginEl = document.getElementById('saleMarginPreview');
-        marginEl.textContent = `${margin >= 0 ? '+' : ''}€${margin.toFixed(2)}`;
-        marginEl.className = `value ${margin >= 0 ? 'positive' : 'negative'}`;
+    calculateComponentsCost() {
+        return profitState.components.reduce((sum, c) => sum + c.fifoCost, 0);
     },
 
     async submit(e) {
@@ -251,7 +299,13 @@ const recordSale = {
 
         const productName = document.getElementById('saleProductName').value.trim();
         const salePrice = parseFloat(document.getElementById('salePrice').value) || 0;
-        const totalCost = profitState.components.reduce((sum, c) => sum + c.fifoCost, 0);
+        const componentsCost = this.calculateComponentsCost();
+
+        // Calculate automatic costs
+        const commissionCost = salePrice * PROFIT_CONFIG.COMMISSION_RATE;
+        const staticCost = PROFIT_CONFIG.STATIC_OVERHEAD;
+        const totalCost = componentsCost + commissionCost + staticCost;
+        const margin = salePrice - totalCost;
 
         if (profitState.components.length === 0) {
             toast.show('Please add at least one component', 'error');
@@ -276,7 +330,7 @@ const recordSale = {
             return;
         }
 
-        // Create transaction record
+        // Create transaction record with cost breakdown
         const orderId = `ORD-${Date.now().toString(36).toUpperCase()}`;
         const transaction = {
             orderId,
@@ -289,7 +343,15 @@ const recordSale = {
             })),
             cost: totalCost,
             sale: salePrice,
-            margin: salePrice - totalCost
+            margin: margin,
+
+            // NEW: Store breakdown for historical reference
+            costBreakdown: {
+                components: componentsCost,
+                commission: commissionCost,
+                commissionRate: PROFIT_CONFIG.COMMISSION_RATE,
+                staticOverhead: staticCost
+            }
         };
 
         // Save transaction
@@ -304,7 +366,7 @@ const recordSale = {
         // Refresh parts to show updated stock
         await loadParts();
 
-        toast.show(`Sale recorded! Margin: €${transaction.margin.toFixed(2)}`, 'success');
+        toast.show(`Sale recorded! Margin: €${transaction.margin.toFixed(2)}`, margin >= 0 ? 'success' : 'warning');
     },
 
     async getStockQty(stockId) {
@@ -446,16 +508,44 @@ const profitEngine = {
 
     async calculateInventoryValue() {
         try {
+            const startTime = performance.now();
+
             // Use CONFIG.API_TOKEN from app.js instead of undefined state.token
             if (!CONFIG.API_TOKEN) {
                 console.warn('⚠️ calculateInventoryValue: No auth token available');
                 return;
             }
 
-            // Use api.request for consistency (handles headers and auth)
-            // Need to handle strict structure of InvenTree API
-            // fetch all stock items (might need pagination loop for large inventories, but start with limit=1000)
-            // InvenTree list endpoint usually returns array or results object
+            // Check cache first (5-minute TTL)
+            const cacheKey = 'omiximo_inventory_cache';
+            const cacheData = localStorage.getItem(cacheKey);
+
+            if (cacheData) {
+                try {
+                    const { timestamp, value, items } = JSON.parse(cacheData);
+                    const cacheAge = Date.now() - timestamp;
+                    const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+                    if (cacheAge < CACHE_TTL) {
+                        profitState.inventoryValue = value;
+                        profitState.stockItems = items;
+
+                        this.renderSummary();
+                        if (profitState.currentSubView === 'inventory') {
+                            this.renderInventoryBreakdown();
+                        }
+
+                        const elapsed = ((performance.now() - startTime) / 1000).toFixed(3);
+                        console.log(`💰 Inventory Value (cached): €${value.toFixed(2)} (${items.length} batches) in ${elapsed}s`);
+                        return;
+                    }
+                } catch (e) {
+                    console.warn('Cache parse error, fetching fresh data:', e);
+                }
+            }
+
+            // Cache miss or expired - fetch fresh data
+            console.log('🔄 Fetching fresh inventory data...');
             const stockItems = await api.request('/stock/?limit=1000');
             const items = stockItems.results || stockItems;
 
@@ -465,22 +555,28 @@ const profitEngine = {
             items.forEach(item => {
                 const qty = parseFloat(item.quantity) || 0;
                 const price = parseFloat(item.purchase_price) || 0;
-                // console.log(`Item ${item.pk}: ${qty} x ${price} = ${qty*price}`);
                 totalVal += qty * price;
             });
 
             profitState.inventoryValue = totalVal;
-            profitState.stockItems = items; // Cache for breakdown view
+            profitState.stockItems = items;
+
+            // Store in cache
+            localStorage.setItem(cacheKey, JSON.stringify({
+                timestamp: Date.now(),
+                value: totalVal,
+                items: items
+            }));
 
             // Update UI
             this.renderSummary();
 
-            // If we are currently in the inventory sub-view, re-render the table
             if (profitState.currentSubView === 'inventory') {
                 this.renderInventoryBreakdown();
             }
 
-            console.log(`💰 Inventory Value Updated: €${totalVal.toFixed(2)} (${items.length} batches)`);
+            const elapsed = ((performance.now() - startTime) / 1000).toFixed(3);
+            console.log(`💰 Inventory Value Updated: €${totalVal.toFixed(2)} (${items.length} batches) in ${elapsed}s`);
 
         } catch (err) {
             console.error('Inventory Value Calc Error:', err);
@@ -731,7 +827,7 @@ const profitEngine = {
                 // Batches
                 part.batches.forEach(batch => {
                     html += `
-                        <tr class="batch-row hidden">
+                        <tr class="batch-row hidden" onclick="batchDetail.show(${batch.id})" style="cursor: pointer;">
                             <td style="padding-left: 2rem;">
                                 <span style="opacity:0.7">Batch: ${batch.batch} (Loc: ${batch.location})</span>
                             </td>
@@ -782,15 +878,36 @@ const profitEngine = {
             return;
         }
 
-        container.innerHTML = profitState.transactions.map(tx => `
+        container.innerHTML = profitState.transactions.map(tx => {
+            const breakdown = tx.costBreakdown || {};
+
+            return `
             <div class="transaction-card" data-order="${tx.orderId}">
                 <div class="transaction-header">
                     <span class="transaction-id">${tx.orderId}</span>
                     <span class="transaction-date">${tx.date}</span>
                 </div>
                 <div class="transaction-product">${tx.productName}</div>
+
+                ${breakdown.components !== undefined ? `
+                    <div class="transaction-breakdown">
+                        <div class="breakdown-item">
+                            <span class="breakdown-label">Components:</span>
+                            <span class="breakdown-value">€${breakdown.components.toFixed(2)}</span>
+                        </div>
+                        <div class="breakdown-item breakdown-item-auto">
+                            <span class="breakdown-label">Commission (${(breakdown.commissionRate * 100).toFixed(1)}%):</span>
+                            <span class="breakdown-value">€${breakdown.commission.toFixed(2)}</span>
+                        </div>
+                        <div class="breakdown-item breakdown-item-auto">
+                            <span class="breakdown-label">Fixed Overhead:</span>
+                            <span class="breakdown-value">€${breakdown.staticOverhead.toFixed(2)}</span>
+                        </div>
+                    </div>
+                ` : ''}
+
                 <div class="transaction-financials">
-                    <span class="cost">Cost: €${tx.cost.toFixed(2)}</span>
+                    <span class="cost">Total Cost: €${tx.cost.toFixed(2)}</span>
                     <span class="sale">Sale: €${tx.sale.toFixed(2)}</span>
                     <span class="margin ${tx.margin >= 0 ? 'positive' : 'negative'}">
                         Margin: ${tx.margin >= 0 ? '+' : ''}€${tx.margin.toFixed(2)}
@@ -806,7 +923,8 @@ const profitEngine = {
                     `).join('')}
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
 
         // Add click handlers for expand/collapse
         container.querySelectorAll('.transaction-card').forEach(card => {

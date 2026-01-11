@@ -1,6 +1,6 @@
 # Project: Omiximo Inventory OS
 
-Last Updated: 2026-01-11 20:45:00 UTC
+Last Updated: 2026-01-11 23:30:00 UTC
 
 ---
 
@@ -9,7 +9,7 @@ Last Updated: 2026-01-11 20:45:00 UTC
 - **Purpose:** High-performance, keyboard-first inventory management system for a computer assembly business. Replaces the default InvenTree UI with a "Headless" Single Page Application (SPA) optimized for barcode scanners and warehouse operations.
 - **Tech Stack:** Vanilla ES6+ JavaScript (No frameworks), CSS3 with custom properties, InvenTree (Django/Python) backend, PostgreSQL, Redis, Docker
 - **Architecture:** Headless SPA + Dockerized Microservices (Frontend nginx container + Backend InvenTree container stack)
-- **Status:** Alpha (v0.9.0) - Active Development (Phase 5 Complete)
+- **Status:** Alpha (v0.9.1) - Active Development (Phase 7 In Progress)
 - **Philosophy:**
   1. **Speed is Feature #1:** Zero build steps, instant load times, raw API calls
   2. **Swiss Sci-Fi Aesthetic:** "Braun electronics from 2077" - deep teal (#005066), glassmorphism, strict grid alignments
@@ -85,7 +85,7 @@ Last Updated: 2026-01-11 20:45:00 UTC
 
 ### Frontend
 - **Framework:** None - Pure Vanilla ES6+ JavaScript (intentional choice for zero build complexity)
-- **Styling:** Custom CSS3 with CSS Custom Properties (CSS Variables) - 3,330 lines
+- **Styling:** Custom CSS3 with CSS Custom Properties (CSS Variables) - 4,700+ lines
 - **State Management:** Custom JavaScript objects (`state`, `profitState`) + localStorage
 - **UI Components:** Custom glassmorphism components, no component library
 - **Build Tool:** None - No bundler, no transpiler, direct browser execution
@@ -130,13 +130,13 @@ Last Updated: 2026-01-11 20:45:00 UTC
 ### Key Components
 
 **Frontend Modules (`/frontend/`):**
-- **`app.js`** (2,668 lines): Core router, auth, API client, wall grid, scanner listener, catalog
+- **`app.js`** (2,800+ lines): Core router, auth, API client, wall grid, scanner listener, catalog, shelfConfig, binInfoModal
 - **`profit.js`** (825 lines): Profit engine with FIFO calculation, Chart.js rendering, inventory valuation
 - **`tenant.js`** (296 lines): Multi-tenant context switching, tenant CRUD, user assignment
 - **`labels.js`** (192 lines): Barcode generation (JsBarcode), label printing
 - **`env.js`** (5 lines): Runtime environment configuration
 - **`index.html`** (651 lines): Single entry point with all view templates
-- **`style.css`** (3,330 lines): Swiss Sci-Fi design system with glassmorphism
+- **`style.css`** (4,700+ lines): Swiss Sci-Fi design system with glassmorphism, binInfoModal styling
 
 **Backend (InvenTree):**
 - Parts management (`/api/part/`)
@@ -274,6 +274,46 @@ docker compose down -v
 ---
 
 ## Agent Dispatch History
+
+### 2026-01-11 (Late Evening) - Phase 7 Bin A/B FIFO System (Partial Implementation)
+- **Agents Used:**
+  - orchestrator (implementation and UI design)
+- **Skills Used:** None
+- **MCP Tools Used:** None
+- **Outcome:** Partial Phase 7 implementation - shelfConfig module and binInfoModal redesigned
+- **Implementation Details:**
+  - **shelfConfig Module:**
+    - Per-shelf localStorage configuration with `omiximo_shelf_config` key
+    - Configuration options: splitFifo (boolean), splitBins (boolean), capacityA (number), capacityB (number)
+    - Methods: getConfig(zone, col, level), setConfig(zone, col, level, config), save(), load()
+    - Automatic initialization with default values (splitFifo: false, splitBins: false)
+  - **binInfoModal Redesign (Swiss Sci-Fi Aesthetic):**
+    - Teal gradient header (#005066 to #003344) with glassmorphism bin badge
+    - Stock status card with metrics display (current stock, capacity, batch info)
+    - Animated progress bar showing fill level with color coding
+    - Configuration panel with toggle switches for Split FIFO and Single Bin modes
+    - Quick action buttons: Batches (view), Capacity (edit), Close
+    - Modal overlay with backdrop blur (12px) and smooth transitions
+  - **checkAutoTransfer() Function:**
+    - Automatic A to B stock movement based on FIFO logic
+    - Checks bin B capacity and moves stock from bin A when B is depleted
+    - Respects splitFifo configuration (skips transfer if enabled)
+    - Logs transfer events for audit trail
+  - **Bin Click Handlers:**
+    - Added click event listeners to wall cells
+    - Opens binInfoModal with shelf configuration
+    - Loads current stock data and displays in modal
+- **Files Modified:**
+  - `/frontend/app.js` - Added shelfConfig module (~100 lines), binInfoModal functions (~150 lines), checkAutoTransfer() (~50 lines), bin click handlers, v21
+  - `/frontend/index.html` - New binInfoModal HTML structure with Swiss Sci-Fi design
+  - `/frontend/style.css` - ~400 lines of binInfoModal styling (gradients, glassmorphism, toggles, progress bars), v9
+- **Bugs Fixed:** None (new implementation)
+- **Learnings:**
+  - Swiss Sci-Fi aesthetic requires careful attention to gradients, glassmorphism, and spacing
+  - Toggle switches need custom CSS (no native HTML toggle)
+  - Progress bar animations improve perceived performance
+- **Duration:** 3 hours
+- **Status:** Phase 7 IN PROGRESS - Core infrastructure complete, full FIFO automation pending
 
 ### 2026-01-11 (Evening) - localStorage Migration & 2-Column Grid Layout (CRITICAL FIX)
 - **Agents Used:**
@@ -532,6 +572,7 @@ docker compose down -v
   - `omiximo_transactions` - transaction history
   - `omiximo_zones` - dynamic zone configuration (Phase 5+)
   - `omiximo_zone_version` - migration version tracker (currently '2')
+  - `omiximo_shelf_config` - per-shelf FIFO configuration (Phase 7+)
   - `theme` - dark/light mode
 
 ### Error Handling
@@ -748,7 +789,28 @@ FRONTEND_PORT=1441
 
 ## Changelog
 
-### 2026-01-11 (Evening) - localStorage Migration & Grid Layout Fix 🔧
+### 2026-01-11 (Late Evening) - Phase 7 Bin A/B FIFO System (Partial)
+- **Added: shelfConfig Module**
+  - Per-shelf localStorage configuration (`omiximo_shelf_config`)
+  - Configuration options: splitFifo, splitBins, capacityA, capacityB
+  - CRUD methods: getConfig(), setConfig(), save(), load()
+  - Default initialization for new shelves
+- **Added: binInfoModal Redesign (Swiss Sci-Fi Aesthetic)**
+  - Teal gradient header with glassmorphism bin badge
+  - Stock status card with metrics and animated progress bar
+  - Configuration panel with toggle switches
+  - Quick action buttons (Batches, Capacity, Close)
+  - Modal overlay with backdrop blur and transitions
+- **Added: checkAutoTransfer() Function**
+  - Automatic A to B stock movement based on FIFO logic
+  - Respects splitFifo configuration
+  - Audit logging for transfers
+- **Added: Bin Click Handlers**
+  - Wall cells respond to click events
+  - Opens binInfoModal with current shelf data
+- **Updated:** app.js?v=21, style.css?v=9, index.html (binInfoModal HTML)
+
+### 2026-01-11 (Evening) - localStorage Migration & Grid Layout Fix
 - **Added: localStorage Migration System**
   - Version-based migration with `omiximo_zone_version` = '2'
   - Automatic detection and clearing of incompatible pre-Phase 5 data
@@ -814,7 +876,7 @@ FRONTEND_PORT=1441
 
 **Last Reviewed:** 2026-01-11
 **Maintained By:** Orchestrator Agent + Team
-**Version:** 0.9.0 (Alpha - Phase 5 Complete with Migration System)
+**Version:** 0.9.1 (Alpha - Phase 7 In Progress)
 
 ---
 
